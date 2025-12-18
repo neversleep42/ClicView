@@ -15,6 +15,8 @@ import {
     CheckCircle,
     Zap
 } from 'lucide-react';
+import { AddTemplateModal } from '@/components/AddTemplateModal';
+import { useToast } from '@/components/Toast';
 
 // Toggle Component
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (val: boolean) => void }) {
@@ -136,6 +138,7 @@ function TemplateCard({ title, category, preview }: { title: string; category: s
 }
 
 export default function AISettingsPage() {
+    const { addToast } = useToast();
     const [settings, setSettings] = useState({
         aiEnabled: true,
         autoReply: true,
@@ -146,22 +149,30 @@ export default function AISettingsPage() {
         selectedPersona: 'professional',
     });
     const [saved, setSaved] = useState(false);
+    const [isAddTemplateOpen, setIsAddTemplateOpen] = useState(false);
+
+    // Default templates moved to state
+    const [templates, setTemplates] = useState([
+        { title: 'Order Status Update', category: 'Shipping', preview: 'Thank you for reaching out! I can see your order #{{order_id}} is currently...' },
+        { title: 'Refund Confirmation', category: 'Returns', preview: 'Your refund request has been approved. You should see the amount...' },
+        { title: 'Product Inquiry', category: 'General', preview: 'Great question! The {{product_name}} is available in multiple sizes...' },
+    ]);
 
     const handleSave = () => {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+        addToast('success', 'Settings Saved', 'Your AI configuration has been updated.');
+    };
+
+    const handleAddTemplate = (newTemplate: any) => {
+        setTemplates([...templates, newTemplate]);
+        addToast('success', 'Template Created', `New template "${newTemplate.title}" added.`);
     };
 
     const personas = [
         { id: 'professional', name: 'Professional', description: 'Formal and courteous business tone', icon: <Shield className="w-5 h-5" /> },
         { id: 'friendly', name: 'Friendly', description: 'Warm and approachable casual style', icon: <MessageSquare className="w-5 h-5" /> },
         { id: 'concise', name: 'Concise', description: 'Short and straight to the point', icon: <Zap className="w-5 h-5" /> },
-    ];
-
-    const templates = [
-        { title: 'Order Status Update', category: 'Shipping', preview: 'Thank you for reaching out! I can see your order #{{order_id}} is currently...' },
-        { title: 'Refund Confirmation', category: 'Returns', preview: 'Your refund request has been approved. You should see the amount...' },
-        { title: 'Product Inquiry', category: 'General', preview: 'Great question! The {{product_name}} is available in multiple sizes...' },
     ];
 
     return (
@@ -380,7 +391,10 @@ export default function AISettingsPage() {
                                     <TemplateCard key={i} {...template} />
                                 ))}
                             </div>
-                            <button className="btn btn-secondary w-full mt-4">
+                            <button
+                                onClick={() => setIsAddTemplateOpen(true)}
+                                className="btn btn-secondary w-full mt-4"
+                            >
                                 + Add New Template
                             </button>
                         </motion.div>
@@ -402,6 +416,12 @@ export default function AISettingsPage() {
                     </div>
                 </div>
             </main>
+
+            <AddTemplateModal
+                isOpen={isAddTemplateOpen}
+                onClose={() => setIsAddTemplateOpen(false)}
+                onSubmit={handleAddTemplate}
+            />
         </div>
     );
 }

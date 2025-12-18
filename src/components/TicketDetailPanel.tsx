@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X,
@@ -31,13 +31,16 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }
     const [isArchiving, setIsArchiving] = useState(false);
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [draftContent, setDraftContent] = useState('');
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Initialize draft content when ticket changes
-    useState(() => {
+    useEffect(() => {
         if (ticket?.draftResponse) {
             setDraftContent(ticket.draftResponse);
+        } else {
+            setDraftContent('');
         }
-    });
+    }, [ticket]);
 
     if (!ticket) return null;
 
@@ -79,7 +82,7 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="panel-overlay"
+                        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
                     />
 
                     {/* Panel */}
@@ -87,226 +90,145 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }
                         initial={{ x: '100%' }}
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
-                        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                        className="panel"
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                        className="fixed right-0 top-0 h-full w-full md:w-1/2 lg:w-1/3 bg-white shadow-lg flex flex-col z-50 border-l"
+                        style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
                     >
                         {/* Header */}
                         <div
-                            className="sticky top-0 z-10 flex items-center justify-between p-5 border-b"
-                            style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+                            className="flex items-center justify-between p-5 border-b"
+                            style={{ borderColor: 'var(--border-primary)' }}
                         >
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-sm font-medium" style={{ color: 'var(--text-tertiary)' }}>
-                                        {ticket.ticketNumber}
-                                    </span>
-                                    <span className={`badge ${ticket.aiStatus === 'resolved' ? 'badge-completed' :
-                                            ticket.aiStatus === 'draft_ready' ? 'badge-process' :
-                                                ticket.aiStatus === 'human_needed' ? 'badge-human' : 'badge-pending'
-                                        }`}>
-                                        {ticket.aiStatus === 'resolved' ? 'Resolved' :
-                                            ticket.aiStatus === 'draft_ready' ? 'Draft Ready' :
-                                                ticket.aiStatus === 'human_needed' ? 'Human Needed' : 'Pending'}
-                                    </span>
-                                </div>
-                                <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                    {ticket.subject}
-                                </h2>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <motion.button
-                                    onClick={handleArchive}
-                                    disabled={isArchiving}
-                                    className="btn btn-secondary"
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                >
-                                    {isArchiving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
-                                    Archive
-                                </motion.button>
-                                <button onClick={onClose} className="btn-ghost p-2 rounded-lg">
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
+                            <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                Ticket {ticket.ticketNumber}
+                            </h2>
+                            <button onClick={onClose} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                                <X size={20} />
+                            </button>
                         </div>
 
-                        {/* Content */}
-                        <div className="p-5 space-y-6">
-                            {/* AI Insight Card */}
-                            <div
-                                className="p-4 rounded-xl"
-                                style={{
-                                    background: 'linear-gradient(135deg, var(--accent-green-bg), transparent)',
-                                    border: '1px solid var(--accent-green-light)',
-                                }}
-                            >
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Sparkles className="w-4 h-4" style={{ color: 'var(--accent-green-dark)' }} />
-                                    <span className="text-sm font-semibold" style={{ color: 'var(--accent-green-dark)' }}>
-                                        AI Analysis
-                                    </span>
-                                </div>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div>
-                                        <p className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>Category</p>
-                                        <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                                            {getCategoryLabel(ticket.category)}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>Sentiment</p>
-                                        <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                                            {getSentimentEmoji(ticket.sentiment)} {ticket.sentiment}/10
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>Confidence</p>
-                                        <p className="font-medium" style={{ color: 'var(--accent-green-dark)' }}>
-                                            {ticket.aiStatus === 'resolved' ? '95%' :
-                                                ticket.aiStatus === 'draft_ready' ? '85%' : '45%'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
+                        {/* Main Content */}
+                        <div className="flex-1 overflow-y-auto p-5 space-y-6">
                             {/* Customer Info */}
-                            <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'var(--bg-secondary)' }}>
-                                <div className="flex items-center gap-3">
-                                    <div className="avatar">
-                                        {ticket.customer.name.split(' ').map(n => n[0]).join('')}
-                                    </div>
-                                    <div>
-                                        <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{ticket.customer.name}</p>
-                                        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>{ticket.customer.email}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm">
-                                    <Clock className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
-                                    <span style={{ color: 'var(--text-secondary)' }}>{ticket.date}</span>
-                                </div>
+                            <div className="flex items-center space-x-3 p-3 rounded-xl bg-secondary/50">
+                                <User size={20} className="text-gray-500" />
+                                <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                                    {ticket.customer.name} ({ticket.customer.email})
+                                </span>
                             </div>
 
-                            {/* Original Message */}
-                            <div>
-                                <div className="flex items-center gap-2 mb-3">
-                                    <User className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
-                                    <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-tertiary)' }}>
-                                        Customer Message
-                                    </h3>
-                                </div>
-                                <div
-                                    className="p-4 rounded-xl text-sm leading-relaxed whitespace-pre-line"
-                                    style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
-                                >
+                            {/* Ticket Details */}
+                            <div className="space-y-3">
+                                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                    {ticket.subject}
+                                </h3>
+                                <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: 'var(--text-secondary)' }}>
                                     {ticket.content}
+                                </p>
+                                <div className="flex items-center flex-wrap gap-2 text-xs text-gray-500 pt-2">
+                                    <Clock size={14} />
+                                    <span>{ticket.date}</span>
+                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                        {getCategoryLabel(ticket.category)}
+                                    </span>
+                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                        {ticket.priority}
+                                    </span>
+                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                        {getSentimentEmoji(ticket.sentiment)} {ticket.sentiment}/10
+                                    </span>
                                 </div>
                             </div>
 
                             {/* AI Draft Response */}
                             {ticket.draftResponse && (
-                                <div>
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <Sparkles className="w-4 h-4" style={{ color: 'var(--accent-green)' }} />
-                                            <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-tertiary)' }}>
-                                                AI Draft Response
-                                            </h3>
-                                        </div>
-                                        <motion.button
+                                <div className="border rounded-xl p-4 space-y-3" style={{ borderColor: 'var(--border-primary)' }}>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h4 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                            <Sparkles size={16} className="text-yellow-500" /> AI Draft Response
+                                        </h4>
+                                        <button
                                             onClick={handleRegenerate}
+                                            className="btn btn-ghost btn-sm h-8 px-2 text-xs flex items-center gap-1"
                                             disabled={isRegenerating}
-                                            className="btn-ghost p-2 rounded-lg text-sm flex items-center gap-1"
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
                                         >
                                             {isRegenerating ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                <Loader2 size={14} className="animate-spin" />
                                             ) : (
-                                                <RefreshCcw className="w-4 h-4" />
+                                                <RefreshCcw size={14} />
                                             )}
-                                            Regenerate
-                                        </motion.button>
+                                            {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+                                        </button>
                                     </div>
 
                                     {isRegenerating ? (
-                                        <div className="p-4 rounded-xl space-y-3" style={{ background: 'var(--accent-green-bg)' }}>
-                                            <div className="skeleton h-4 w-full" />
-                                            <div className="skeleton h-4 w-4/5" />
-                                            <div className="skeleton h-4 w-3/4" />
-                                            <div className="skeleton h-4 w-full" />
+                                        <div className="space-y-3 p-4 rounded-xl bg-secondary/30 animate-pulse">
+                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full" />
+                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6" />
                                         </div>
                                     ) : (
                                         <textarea
-                                            value={draftContent || ticket.draftResponse}
+                                            ref={textareaRef}
+                                            value={draftContent}
                                             onChange={(e) => setDraftContent(e.target.value)}
-                                            className="w-full p-4 rounded-xl text-sm leading-relaxed resize-none min-h-[200px] outline-none focus:ring-2"
+                                            className="w-full p-4 rounded-xl text-sm leading-relaxed resize-none min-h-[200px] outline-none focus:ring-2 focus:ring-primary/20 transition-all bg-secondary/30"
                                             style={{
-                                                background: 'var(--accent-green-bg)',
                                                 color: 'var(--text-primary)',
-                                                border: '1px solid var(--accent-green-light)',
                                             }}
                                         />
                                     )}
 
                                     {/* Feedback */}
-                                    <div className="flex items-center gap-2 mt-3">
-                                        <motion.button
-                                            className="btn-ghost p-2 rounded-lg"
-                                            whileHover={{ scale: 1.1 }}
-                                            whileTap={{ scale: 0.9 }}
-                                        >
-                                            <ThumbsUp className="w-4 h-4" />
-                                        </motion.button>
-                                        <motion.button
-                                            className="btn-ghost p-2 rounded-lg"
-                                            whileHover={{ scale: 1.1 }}
-                                            whileTap={{ scale: 0.9 }}
-                                        >
-                                            <ThumbsDown className="w-4 h-4" />
-                                        </motion.button>
-                                        <span className="text-xs ml-2" style={{ color: 'var(--text-tertiary)' }}>
-                                            Was this draft helpful?
-                                        </span>
+                                    <div className="flex justify-end gap-2 pt-2">
+                                        <button className="btn btn-ghost btn-sm h-8 px-2 flex items-center gap-1 text-gray-500 hover:text-green-500">
+                                            <ThumbsUp size={14} />
+                                        </button>
+                                        <button className="btn btn-ghost btn-sm h-8 px-2 flex items-center gap-1 text-gray-500 hover:text-red-500">
+                                            <ThumbsDown size={14} />
+                                        </button>
                                     </div>
-                                </div>
-                            )}
-
-                            {/* Human Review Notice */}
-                            {!ticket.draftResponse && ticket.aiStatus === 'human_needed' && (
-                                <div className="p-4 rounded-xl text-center" style={{ background: 'var(--status-human-bg)', border: '1px solid #c4b5fd' }}>
-                                    <p className="font-medium mb-2" style={{ color: '#7c3aed' }}>Human Review Required</p>
-                                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                                        This ticket requires manual review due to its complexity.
-                                    </p>
                                 </div>
                             )}
                         </div>
 
                         {/* Footer Actions */}
                         <div
-                            className="sticky bottom-0 flex items-center justify-between p-5 border-t"
+                            className="sticky bottom-0 flex items-center justify-between p-5 border-t bg-white dark:bg-slate-900"
                             style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
                         >
-                            <button className="btn btn-secondary">Edit Draft</button>
-                            <motion.button
-                                onClick={handleSend}
-                                disabled={isSending}
-                                className="btn btn-primary min-w-[140px]"
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
+                            <button
+                                onClick={() => textareaRef.current?.focus()}
+                                className="btn btn-secondary"
                             >
-                                {isSending ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        Sending...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Send className="w-4 h-4" />
-                                        Send Response
-                                    </>
-                                )}
-                            </motion.button>
+                                Edit Draft
+                            </button>
+                            <div className="flex space-x-3">
+                                <button
+                                    onClick={handleArchive}
+                                    className="btn btn-secondary flex items-center gap-2"
+                                    disabled={isArchiving}
+                                >
+                                    {isArchiving ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                    ) : (
+                                        <Archive size={16} />
+                                    )}
+                                    Archive
+                                </button>
+                                <button
+                                    onClick={handleSend}
+                                    className="btn btn-primary flex items-center gap-2"
+                                    disabled={isSending}
+                                >
+                                    {isSending ? (
+                                        <Loader2 size={16} className="animate-spin" />
+                                    ) : (
+                                        <Send size={16} />
+                                    )}
+                                    Send Reply
+                                </button>
+                            </div>
                         </div>
                     </motion.div>
                 </>

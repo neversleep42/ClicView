@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
-import { Search, X, Mail, Package, DollarSign, Calendar } from 'lucide-react';
+import { Search, X, Mail, Package, DollarSign, Calendar, Trash2, Edit2, Save, XCircle } from 'lucide-react';
+import { AddCustomerModal } from '@/components/AddCustomerModal';
+import { useToast } from '@/components/Toast';
 
 // Mock customer data
 const mockCustomers = [
@@ -27,8 +29,50 @@ interface Customer {
 }
 
 // Customer Profile Drawer
-function CustomerDrawer({ customer, onClose }: { customer: Customer | null; onClose: () => void }) {
+function CustomerDrawer({
+    customer,
+    onClose,
+    onDelete,
+    onUpdate
+}: {
+    customer: Customer | null;
+    onClose: () => void;
+    onDelete: (id: string) => void;
+    onUpdate: (id: string, data: Partial<Customer>) => void;
+}) {
+    const { addToast } = useToast();
+    const [isEditing, setIsEditing] = useState(false);
+    const [formData, setFormData] = useState<Partial<Customer>>({});
+
     if (!customer) return null;
+
+    // Initialize form data when entering edit mode
+    const startEditing = () => {
+        setFormData(customer);
+        setIsEditing(true);
+    };
+
+    const handleSave = () => {
+        onUpdate(customer.id, formData);
+        setIsEditing(false);
+        addToast('success', 'Customer Updated', `${formData.name || customer.name}'s profile has been updated.`);
+    };
+
+    const handleDelete = () => {
+        if (confirm('Are you sure you want to delete this customer?')) {
+            onDelete(customer.id);
+            onClose();
+            addToast('info', 'Customer Deleted', `${customer.name} has been removed.`);
+        }
+    };
+
+    const handleSendEmail = () => {
+        addToast('success', 'Email Sent', `Email sent to ${customer.email}`);
+    };
+
+    const handleViewOrders = () => {
+        addToast('info', 'View Orders', `Navigating to orders for ${customer.name}`);
+    };
 
     return (
         <AnimatePresence>
@@ -49,11 +93,22 @@ function CustomerDrawer({ customer, onClose }: { customer: Customer | null; onCl
                 {/* Header */}
                 <div className="sticky top-0 z-10 flex items-center justify-between p-6 border-b" style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
                     <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                        Customer Profile
+                        {isEditing ? 'Edit Customer' : 'Customer Profile'}
                     </h2>
-                    <button onClick={onClose} className="btn-ghost p-2 rounded-lg">
-                        <X className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {!isEditing && (
+                            <button
+                                onClick={handleDelete}
+                                className="p-2 rounded-lg text-red-400 hover:bg-red-400/10 transition-colors"
+                                title="Delete Customer"
+                            >
+                                <Trash2 className="w-5 h-5" />
+                            </button>
+                        )}
+                        <button onClick={onClose} className="btn-ghost p-2 rounded-lg">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Content */}
@@ -63,10 +118,41 @@ function CustomerDrawer({ customer, onClose }: { customer: Customer | null; onCl
                         <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-semibold" style={{ background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)', color: 'white' }}>
                             {customer.name.split(' ').map(n => n[0]).join('')}
                         </div>
-                        <div>
-                            <h3 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{customer.name}</h3>
-                            <p style={{ color: 'var(--text-tertiary)' }}>{customer.email}</p>
+                        <div className="flex-1">
+                            {isEditing ? (
+                                <div className="space-y-2">
+                                    <input
+                                        type="text"
+                                        value={formData.name || ''}
+                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                        className="w-full bg-transparent border-b border-gray-700 text-lg font-semibold focus:outline-none focus:border-indigo-500"
+                                        placeholder="Name"
+                                        style={{ color: 'var(--text-primary)' }}
+                                    />
+                                    <input
+                                        type="email"
+                                        value={formData.email || ''}
+                                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                        className="w-full bg-transparent border-b border-gray-700 text-sm focus:outline-none focus:border-indigo-500"
+                                        placeholder="Email"
+                                        style={{ color: 'var(--text-tertiary)' }}
+                                    />
+                                </div>
+                            ) : (
+                                <>
+                                    <h3 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>{customer.name}</h3>
+                                    <p style={{ color: 'var(--text-tertiary)' }}>{customer.email}</p>
+                                </>
+                            )}
                         </div>
+                        {!isEditing && (
+                            <button
+                                onClick={startEditing}
+                                className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                            >
+                                <Edit2 className="w-4 h-4 text-gray-400" />
+                            </button>
+                        )}
                     </div>
 
                     {/* Stats Grid */}
@@ -76,45 +162,88 @@ function CustomerDrawer({ customer, onClose }: { customer: Customer | null; onCl
                                 <Package className="w-4 h-4" style={{ color: 'var(--accent-green)' }} />
                                 <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Total Orders</span>
                             </div>
-                            <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{customer.orders}</p>
+                            {isEditing ? (
+                                <input
+                                    type="number"
+                                    value={formData.orders || 0}
+                                    onChange={e => setFormData({ ...formData, orders: parseInt(e.target.value) })}
+                                    className="w-full bg-transparent border-b border-gray-700 text-2xl font-semibold tabular-nums focus:outline-none focus:border-indigo-500"
+                                    style={{ color: 'var(--text-primary)' }}
+                                />
+                            ) : (
+                                <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{customer.orders}</p>
+                            )}
                         </div>
                         <div className="p-4 rounded-xl" style={{ background: 'var(--bg-secondary)' }}>
                             <div className="flex items-center gap-2 mb-2">
                                 <DollarSign className="w-4 h-4" style={{ color: 'var(--accent-green)' }} />
                                 <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Lifetime Value</span>
                             </div>
-                            <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>${customer.ltv.toLocaleString()}</p>
+                            {isEditing ? (
+                                <input
+                                    type="number"
+                                    value={formData.ltv || 0}
+                                    onChange={e => setFormData({ ...formData, ltv: parseInt(e.target.value) })}
+                                    className="w-full bg-transparent border-b border-gray-700 text-2xl font-semibold tabular-nums focus:outline-none focus:border-indigo-500"
+                                    style={{ color: 'var(--text-primary)' }}
+                                />
+                            ) : (
+                                <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>${customer.ltv.toLocaleString()}</p>
+                            )}
                         </div>
                     </div>
 
                     {/* Recent Activity */}
-                    <div>
-                        <h4 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-tertiary)' }}>
-                            Recent Activity
-                        </h4>
-                        <div className="space-y-3">
-                            {[
-                                { action: 'Submitted ticket #61391', date: '2 days ago', type: 'ticket' },
-                                { action: 'Order #45230 delivered', date: '5 days ago', type: 'order' },
-                                { action: 'Left 5-star review', date: '1 week ago', type: 'review' },
-                            ].map((activity, i) => (
-                                <div key={i} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--bg-secondary)' }}>
-                                    <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{activity.action}</span>
-                                    <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{activity.date}</span>
-                                </div>
-                            ))}
+                    {!isEditing && (
+                        <div>
+                            <h4 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-tertiary)' }}>
+                                Recent Activity
+                            </h4>
+                            <div className="space-y-3">
+                                {[
+                                    { action: 'Submitted ticket #61391', date: '2 days ago', type: 'ticket' },
+                                    { action: 'Order #45230 delivered', date: '5 days ago', type: 'order' },
+                                    { action: 'Left 5-star review', date: '1 week ago', type: 'review' },
+                                ].map((activity, i) => (
+                                    <div key={i} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--bg-secondary)' }}>
+                                        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{activity.action}</span>
+                                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{activity.date}</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Actions */}
                     <div className="flex gap-3">
-                        <button className="btn btn-secondary flex-1">
-                            <Mail className="w-4 h-4" />
-                            Send Email
-                        </button>
-                        <button className="btn btn-primary flex-1">
-                            View Orders
-                        </button>
+                        {isEditing ? (
+                            <>
+                                <button
+                                    onClick={() => setIsEditing(false)}
+                                    className="btn btn-secondary flex-1"
+                                >
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSave}
+                                    className="btn btn-primary flex-1"
+                                >
+                                    <Save className="w-4 h-4 mr-2" />
+                                    Save Changes
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button onClick={handleSendEmail} className="btn btn-secondary flex-1 gap-2">
+                                    <Mail className="w-4 h-4" />
+                                    Send Email
+                                </button>
+                                <button onClick={handleViewOrders} className="btn btn-primary flex-1 gap-2">
+                                    View Orders
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </motion.div>
@@ -123,13 +252,42 @@ function CustomerDrawer({ customer, onClose }: { customer: Customer | null; onCl
 }
 
 export default function CustomersPage() {
+    const { addToast } = useToast();
+    const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-    const filteredCustomers = mockCustomers.filter(c =>
+    const filteredCustomers = customers.filter(c =>
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.email.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    const handleAddCustomer = (newCustomer: any) => {
+        const customer: Customer = {
+            id: Math.random().toString(36).substr(2, 9),
+            name: newCustomer.name,
+            email: newCustomer.email,
+            orders: 0,
+            lastTicket: 'Never',
+            ltv: 0
+        };
+        setCustomers([customer, ...customers]);
+        addToast('success', 'Customer Added', `${customer.name} has been added to the database.`);
+    };
+
+    const handleUpdateCustomer = (id: string, data: Partial<Customer>) => {
+        setCustomers(customers.map(c => c.id === id ? { ...c, ...data } : c));
+        // Also update selected customer to reflect changes immediately in drawer
+        if (selectedCustomer?.id === id) {
+            setSelectedCustomer({ ...selectedCustomer, ...data } as Customer);
+        }
+    };
+
+    const handleDeleteCustomer = (id: string) => {
+        setCustomers(customers.filter(c => c.id !== id));
+        setSelectedCustomer(null);
+    };
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--bg-secondary)' }}>
@@ -146,7 +304,12 @@ export default function CustomersPage() {
                             Manage your customer relationships and view purchase history.
                         </p>
                     </div>
-                    <button className="btn btn-primary">+ Add Customer</button>
+                    <button
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="btn btn-primary"
+                    >
+                        + Add Customer
+                    </button>
                 </div>
 
                 {/* Search */}
@@ -177,7 +340,7 @@ export default function CustomersPage() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: i * 0.05 }}
-                            className="table-row"
+                            className="table-row cursor-pointer"
                             onClick={() => setSelectedCustomer(customer)}
                         >
                             <div className="w-[280px] flex items-center gap-3">
@@ -202,13 +365,31 @@ export default function CustomersPage() {
                             </div>
                         </motion.div>
                     ))}
+
+                    {filteredCustomers.length === 0 && (
+                        <div className="p-8 text-center text-gray-500">
+                            No customers found.
+                        </div>
+                    )}
                 </div>
             </main>
 
             {/* Customer Drawer */}
             {selectedCustomer && (
-                <CustomerDrawer customer={selectedCustomer} onClose={() => setSelectedCustomer(null)} />
+                <CustomerDrawer
+                    customer={selectedCustomer}
+                    onClose={() => setSelectedCustomer(null)}
+                    onDelete={handleDeleteCustomer}
+                    onUpdate={handleUpdateCustomer}
+                />
             )}
+
+            {/* Add Customer Modal */}
+            <AddCustomerModal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                onSubmit={handleAddCustomer}
+            />
         </div>
     );
 }

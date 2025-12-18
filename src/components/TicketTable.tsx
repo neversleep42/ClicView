@@ -114,11 +114,16 @@ interface TicketTableProps {
     onCountChange?: (count: number) => void;
 }
 
+import { NewTicketModal } from './NewTicketModal';
+
+// ... imports remain the same
+
 export function TicketTable({ onCountChange }: TicketTableProps) {
     const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
     const [activeTab, setActiveTab] = useState<TabType>('all');
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
     const [isPanelOpen, setIsPanelOpen] = useState(false);
+    const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false); // Added state
     const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
     const [hoveredRow, setHoveredRow] = useState<string | null>(null);
     const [dateFilter, setDateFilter] = useState('June');
@@ -183,40 +188,42 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
         return 70;
     };
 
+    const handleCreateTicket = (newTicketData: Partial<Ticket>) => {
+        const newTicket: Ticket = {
+            id: Math.random().toString(36).substr(2, 9),
+            ticketNumber: `#${Math.floor(Math.random() * 100000)}`,
+            subject: newTicketData.subject || 'New Ticket',
+            excerpt: newTicketData.content?.substring(0, 50) + '...' || '',
+            customer: newTicketData.customer!,
+            priority: newTicketData.priority || 'medium',
+            category: newTicketData.category || 'general',
+            date: 'Just now',
+            aiStatus: 'pending',
+            sentiment: 5,
+            content: newTicketData.content || '',
+            ...newTicketData
+        };
+        setTickets([newTicket, ...tickets]);
+    };
+
     return (
         <>
             <div className="data-table rounded-2xl">
                 {/* Header */}
                 <div className="table-header flex-wrap gap-4">
-                    <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>Inbox</h2>
-                    <div className="flex-1" />
-
-                    {/* Search */}
-                    <div className="search-input">
-                        <Search className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
-                        <input type="text" placeholder="Search tickets..." />
-                        <span className="kbd">⌘K</span>
-                    </div>
-
-                    {/* Date Filter Dropdown */}
-                    <Dropdown
-                        label="Date"
-                        options={['June', 'May', 'April', 'All Time']}
-                        value={dateFilter}
-                        onChange={setDateFilter}
-                    />
-
-                    {/* Export */}
-                    <motion.button className="btn btn-secondary" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }}>
-                        <Download className="w-4 h-4" />
-                        Export
-                    </motion.button>
+                    {/* ... existing header content ... */}
 
                     {/* New Ticket */}
-                    <motion.button className="btn btn-primary" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }}>
+                    <motion.button
+                        onClick={() => setIsNewTicketModalOpen(true)}
+                        className="btn btn-primary"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.95 }}
+                    >
                         + New Ticket
                     </motion.button>
                 </div>
+
 
                 {/* Tabs */}
                 <div className="px-6 py-4 border-b flex items-center gap-2" style={{ borderColor: 'var(--border-primary)' }}>
@@ -396,6 +403,13 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                 onClose={handleClosePanel}
                 onSend={handleSend}
                 onArchive={handleArchive}
+            />
+
+            {/* New Ticket Modal */}
+            <NewTicketModal
+                isOpen={isNewTicketModalOpen}
+                onClose={() => setIsNewTicketModalOpen(false)}
+                onSubmit={handleCreateTicket}
             />
         </>
     );
