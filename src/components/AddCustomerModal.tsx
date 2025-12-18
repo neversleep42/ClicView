@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Mail, Globe, Loader2, CheckCircle2 } from 'lucide-react';
+import type { CreateCustomerRequest } from '@/lib/api/contracts';
 
 interface AddCustomerModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (customerData: any) => void;
+    onSubmit: (customerData: CreateCustomerRequest) => Promise<void> | void;
 }
 
 export function AddCustomerModal({ isOpen, onClose, onSubmit }: AddCustomerModalProps) {
@@ -20,24 +21,13 @@ export function AddCustomerModal({ isOpen, onClose, onSubmit }: AddCustomerModal
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
-
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        onSubmit({
-            name,
-            email,
-            status,
-            location,
-            orders: 0,
-            spent: '$0.00',
-            lastActive: 'Just now',
-            joinDate: new Date().toLocaleDateString('en-GB')
-        });
-
-        setIsSubmitting(false);
-        onClose();
-        resetForm();
+        try {
+            await onSubmit({ name, email });
+            onClose();
+            resetForm();
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const resetForm = () => {

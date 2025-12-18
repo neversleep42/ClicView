@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
 import {
@@ -17,6 +17,19 @@ import {
 } from 'lucide-react';
 import { AddTemplateModal } from '@/components/AddTemplateModal';
 import { useToast } from '@/components/Toast';
+import { useAISettings, usePatchAISettings } from '@/hooks/useAISettings';
+import { useCreateTemplate, useTemplates } from '@/hooks/useTemplates';
+import type { AIPersona, CreateTemplateRequest } from '@/lib/api/contracts';
+
+type LocalAISettings = {
+    aiEnabled: boolean;
+    autoReply: boolean;
+    learningMode: boolean;
+    confidenceThreshold: number;
+    maxResponseLength: number;
+    toneValue: number;
+    selectedPersona: AIPersona;
+};
 
 // Toggle Component
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (val: boolean) => void }) {
@@ -139,7 +152,14 @@ function TemplateCard({ title, category, preview }: { title: string; category: s
 
 export default function AISettingsPage() {
     const { addToast } = useToast();
-    const [settings, setSettings] = useState({
+    const settingsQuery = useAISettings();
+    const patchSettings = usePatchAISettings();
+
+    const templatesQuery = useTemplates({ limit: 50, cursor: null, sort: 'updatedAt', order: 'desc' });
+    const createTemplate = useCreateTemplate();
+    const templates = templatesQuery.data?.items ?? [];
+
+    const [settings, setSettings] = useState<LocalAISettings>({
         aiEnabled: true,
         autoReply: true,
         learningMode: true,
@@ -151,25 +171,42 @@ export default function AISettingsPage() {
     const [saved, setSaved] = useState(false);
     const [isAddTemplateOpen, setIsAddTemplateOpen] = useState(false);
 
-    // Default templates moved to state
-    const [templates, setTemplates] = useState([
-        { title: 'Order Status Update', category: 'Shipping', preview: 'Thank you for reaching out! I can see your order #{{order_id}} is currently...' },
-        { title: 'Refund Confirmation', category: 'Returns', preview: 'Your refund request has been approved. You should see the amount...' },
-        { title: 'Product Inquiry', category: 'General', preview: 'Great question! The {{product_name}} is available in multiple sizes...' },
-    ]);
+    useEffect(() => {
+        const remote = settingsQuery.data?.settings;
+        if (!remote) return;
+        setSettings({
+            aiEnabled: remote.aiEnabled,
+            autoReply: remote.autoReply,
+            learningMode: remote.learningMode,
+            confidenceThreshold: remote.confidenceThreshold,
+            maxResponseLength: remote.maxResponseLength,
+            toneValue: remote.toneValue,
+            selectedPersona: remote.selectedPersona,
+        });
+    }, [settingsQuery.data?.settings]);
 
-    const handleSave = () => {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
-        addToast('success', 'Settings Saved', 'Your AI configuration has been updated.');
+    const handleSave = async () => {
+        try {
+            await patchSettings.mutateAsync(settings);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 3000);
+            addToast('success', 'Settings Saved', 'Your AI configuration has been updated.');
+        } catch (err: any) {
+            addToast('error', 'Save Failed', err?.message ?? 'Could not save settings.');
+        }
     };
 
-    const handleAddTemplate = (newTemplate: any) => {
-        setTemplates([...templates, newTemplate]);
-        addToast('success', 'Template Created', `New template "${newTemplate.title}" added.`);
+    const handleAddTemplate = async (newTemplate: CreateTemplateRequest) => {
+        try {
+            await createTemplate.mutateAsync(newTemplate);
+            addToast('success', 'Template Created', `New template "${newTemplate.title}" added.`);
+        } catch (err: any) {
+            addToast('error', 'Create Failed', err?.message ?? 'Could not create template.');
+            throw err;
+        }
     };
 
-    const personas = [
+    const personas: Array<{ id: AIPersona; name: string; description: string; icon: React.ReactNode }> = [
         { id: 'professional', name: 'Professional', description: 'Formal and courteous business tone', icon: <Shield className="w-5 h-5" /> },
         { id: 'friendly', name: 'Friendly', description: 'Warm and approachable casual style', icon: <MessageSquare className="w-5 h-5" /> },
         { id: 'concise', name: 'Concise', description: 'Short and straight to the point', icon: <Zap className="w-5 h-5" /> },
@@ -387,8 +424,23 @@ export default function AISettingsPage() {
                                 <button className="text-sm font-medium" style={{ color: 'var(--accent-green-dark)' }}>View All</button>
                             </div>
                             <div className="space-y-3">
-                                {templates.map((template, i) => (
-                                    <TemplateCard key={i} {...template} />
+                                {templatesQuery.isLoading && (
+                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                                        Loading templates...
+                                    </p>
+                                )}
+                                {!templatesQuery.isLoading && templates.length === 0 && (
+                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                                        No templates yet.
+                                    </p>
+                                )}
+                                {templates.map((template) => (
+                                    <TemplateCard
+                                        key={template.id}
+                                        title={template.title}
+                                        category={template.category}
+                                        preview={template.content.substring(0, 100) + (template.content.length > 100 ? '...' : '')}
+                                    />
                                 ))}
                             </div>
                             <button

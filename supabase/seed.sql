@@ -1,0 +1,2 @@
+-- Optional seed data for local development.
+-- Kept intentionally minimal for the hackathon MVP.

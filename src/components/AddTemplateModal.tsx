@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle2, Loader2, List, FileText, Tag } from 'lucide-react';
+import type { CreateTemplateRequest } from '@/lib/api/contracts';
 
 interface AddTemplateModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (template: any) => void;
+    onSubmit: (template: CreateTemplateRequest) => Promise<void> | void;
 }
 
 export function AddTemplateModal({ isOpen, onClose, onSubmit }: AddTemplateModalProps) {
@@ -19,19 +20,13 @@ export function AddTemplateModal({ isOpen, onClose, onSubmit }: AddTemplateModal
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
-
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 800));
-
-        onSubmit({
-            title,
-            category,
-            preview: content.substring(0, 100) + (content.length > 100 ? '...' : '')
-        });
-
-        setIsSubmitting(false);
-        onClose();
-        resetForm();
+        try {
+            await onSubmit({ title, category, content });
+            onClose();
+            resetForm();
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const resetForm = () => {

@@ -1,40 +1,37 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    Search,
-    Download,
-    Calendar,
-    ChevronLeft,
-    ChevronRight,
-    ChevronDown,
-    Sparkles,
-    Archive,
-    Mail,
-    MoreHorizontal
-} from 'lucide-react';
-import {
-    mockTickets as initialTickets,
-    Ticket,
-    getCategoryLabel,
-    getAiStatusLabel,
-    getAiStatusClass,
-    getPriorityLabel,
-    getSentimentEmoji
-} from '@/lib/data';
-import { TicketDetailPanel } from './TicketDetailPanel';
+import { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Archive, ChevronLeft, ChevronRight, Mail, MoreHorizontal, Search, Sparkles } from 'lucide-react';
 
-type TabType = 'all' | 'priority' | 'drafts_ready' | 'completed';
+import type { CreateTicketRequest, TicketDTO } from '@/lib/api/contracts';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useArchiveTicket, useCreateTicket, useTickets } from '@/hooks/useTickets';
+import {
+    formatTicketDate,
+    getCategoryLabel,
+    getPriorityLabel,
+    getSentimentEmoji,
+    getTicketConfidence,
+    getTicketStageClass,
+    getTicketStageLabel,
+} from '@/lib/ticketUi';
+
+import { TicketDetailPanel } from './TicketDetailPanel';
+import { useToast } from './Toast';
+import { NewTicketModal } from './NewTicketModal';
+
+type TabType = 'all' | 'priority' | 'draft_ready' | 'human_needed' | 'resolved' | 'archived';
 
 const tabs: { id: TabType; label: string }[] = [
     { id: 'all', label: 'All' },
     { id: 'priority', label: 'Priority' },
-    { id: 'drafts_ready', label: 'Drafts Ready' },
-    { id: 'completed', label: 'Completed' },
+    { id: 'draft_ready', label: 'Drafts Ready' },
+    { id: 'human_needed', label: 'Human Needed' },
+    { id: 'resolved', label: 'Completed' },
+    { id: 'archived', label: 'Archived' },
 ];
 
-// Mini Confidence Ring
 function ConfidenceMiniRing({ value }: { value: number }) {
     const radius = 8;
     const circumference = 2 * Math.PI * radius;
@@ -44,9 +41,19 @@ function ConfidenceMiniRing({ value }: { value: number }) {
         <svg width="20" height="20" className="flex-shrink-0">
             <circle cx="10" cy="10" r={radius} fill="none" strokeWidth="2" style={{ stroke: 'var(--border-primary)' }} />
             <circle
-                cx="10" cy="10" r={radius} fill="none" strokeWidth="2" strokeLinecap="round"
+                cx="10"
+                cy="10"
+                r={radius}
+                fill="none"
+                strokeWidth="2"
+                strokeLinecap="round"
                 style={{
-                    stroke: value >= 80 ? 'var(--accent-green)' : value >= 60 ? 'var(--status-delivery)' : 'var(--status-pending)',
+                    stroke:
+                        value >= 80
+                            ? 'var(--accent-green)'
+                            : value >= 60
+                              ? 'var(--status-delivery)'
+                              : 'var(--status-pending)',
                     strokeDasharray: circumference,
                     strokeDashoffset: offset,
                     transform: 'rotate(-90deg)',
@@ -57,96 +64,47 @@ function ConfidenceMiniRing({ value }: { value: number }) {
     );
 }
 
-// Dropdown Component
-function Dropdown({ label, options, value, onChange }: { label: string; options: string[]; value: string; onChange: (val: string) => void }) {
-    const [isOpen, setIsOpen] = useState(false);
-
-    return (
-        <div className="relative">
-            <motion.button
-                onClick={() => setIsOpen(!isOpen)}
-                className="btn btn-secondary"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-            >
-                {label}: {value}
-                <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-            </motion.button>
-
-            <AnimatePresence>
-                {isOpen && (
-                    <>
-                        <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-                        <motion.div
-                            initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                            transition={{ duration: 0.15 }}
-                            className="absolute top-full right-0 mt-2 z-20 min-w-[160px] rounded-xl p-1 shadow-lg backdrop-blur-sm"
-                            style={{
-                                background: 'var(--bg-card)',
-                                border: '1px solid var(--border-primary)',
-                                boxShadow: '0 10px 40px -10px rgba(0,0,0,0.2)',
-                            }}
-                        >
-                            {options.map(option => (
-                                <button
-                                    key={option}
-                                    onClick={() => { onChange(option); setIsOpen(false); }}
-                                    className="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors"
-                                    style={{
-                                        color: value === option ? 'var(--accent-green-dark)' : 'var(--text-secondary)',
-                                        background: value === option ? 'var(--accent-green-bg)' : 'transparent',
-                                    }}
-                                >
-                                    {option}
-                                </button>
-                            ))}
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-}
-
 interface TicketTableProps {
     onCountChange?: (count: number) => void;
 }
 
-import { NewTicketModal } from './NewTicketModal';
-
-// ... imports remain the same
-
 export function TicketTable({ onCountChange }: TicketTableProps) {
-    const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
-    const [activeTab, setActiveTab] = useState<TabType>('all');
-    const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-    const [isPanelOpen, setIsPanelOpen] = useState(false);
-    const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false); // Added state
-    const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
-    const [hoveredRow, setHoveredRow] = useState<string | null>(null);
-    const [dateFilter, setDateFilter] = useState('June');
+    const { addToast } = useToast();
 
-    const filteredTickets = tickets.filter(ticket => {
-        switch (activeTab) {
-            case 'priority': return ticket.priority === 'high';
-            case 'drafts_ready': return ticket.aiStatus === 'draft_ready';
-            case 'completed': return ticket.aiStatus === 'resolved';
-            default: return true;
-        }
+    const [activeTab, setActiveTab] = useState<TabType>('all');
+    const [selectedTicket, setSelectedTicket] = useState<TicketDTO | null>(null);
+    const [isPanelOpen, setIsPanelOpen] = useState(false);
+    const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false);
+    const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const debouncedSearch = useDebouncedValue(searchQuery, 300);
+
+    const [cursor, setCursor] = useState<string | null>(null);
+    const [cursorStack, setCursorStack] = useState<(string | null)[]>([]);
+    const page = cursorStack.length + 1;
+
+    const ticketsQuery = useTickets({
+        tab: activeTab,
+        limit: 20,
+        cursor,
+        sort: 'updatedAt',
+        order: 'desc',
+        search: debouncedSearch,
     });
 
-    const getTabCount = useCallback((tabId: TabType) => {
-        switch (tabId) {
-            case 'all': return tickets.length;
-            case 'priority': return tickets.filter(t => t.priority === 'high').length;
-            case 'drafts_ready': return tickets.filter(t => t.aiStatus === 'draft_ready').length;
-            case 'completed': return tickets.filter(t => t.aiStatus === 'resolved').length;
-        }
-    }, [tickets]);
+    const tickets = ticketsQuery.data?.items ?? [];
+    const nextCursor = ticketsQuery.data?.nextCursor ?? null;
 
-    const handleRowClick = (ticket: Ticket) => {
+    const archiveTicket = useArchiveTicket();
+    const createTicket = useCreateTicket();
+
+    useEffect(() => {
+        setCursor(null);
+        setCursorStack([]);
+    }, [activeTab, debouncedSearch]);
+
+    const handleRowClick = (ticket: TicketDTO) => {
         setSelectedTicket(ticket);
         setIsPanelOpen(true);
     };
@@ -156,54 +114,41 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
         setTimeout(() => setSelectedTicket(null), 300);
     };
 
-    // Optimistic UI: Remove ticket on send
-    const handleSend = (ticketId: string) => {
-        setTickets(prev => prev.filter(t => t.id !== ticketId));
-        onCountChange?.(tickets.length - 1);
-    };
-
-    // Optimistic UI: Remove ticket on archive
-    const handleArchive = (ticketId: string) => {
-        setTickets(prev => prev.filter(t => t.id !== ticketId));
-        onCountChange?.(tickets.length - 1);
-    };
-
     const toggleCheck = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        const newChecked = new Set(checkedItems);
-        if (newChecked.has(id)) newChecked.delete(id);
-        else newChecked.add(id);
-        setCheckedItems(newChecked);
+        const next = new Set(checkedItems);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setCheckedItems(next);
     };
 
-    const handleQuickArchive = (ticket: Ticket, e: React.MouseEvent) => {
+    const handleQuickArchive = (ticket: TicketDTO, e: React.MouseEvent) => {
         e.stopPropagation();
-        setTickets(prev => prev.filter(t => t.id !== ticket.id));
+        archiveTicket.mutate(ticket.id, {
+            onSuccess: () => {
+                addToast('info', 'Ticket Archived', `Ticket ${ticket.ticketNumber} moved to archive.`);
+                onCountChange?.(Math.max(0, tickets.length - 1));
+                if (selectedTicket?.id === ticket.id) handleClosePanel();
+            },
+            onError: (err: any) => {
+                addToast('error', 'Archive Failed', err?.message ?? 'Could not archive ticket.');
+            },
+        });
     };
 
-    const getConfidence = (ticket: Ticket) => {
-        if (ticket.aiStatus === 'resolved') return 95;
-        if (ticket.aiStatus === 'draft_ready') return 85;
-        if (ticket.aiStatus === 'human_needed') return 45;
-        return 70;
-    };
-
-    const handleCreateTicket = (newTicketData: Partial<Ticket>) => {
-        const newTicket: Ticket = {
-            id: Math.random().toString(36).substr(2, 9),
-            ticketNumber: `#${Math.floor(Math.random() * 100000)}`,
-            subject: newTicketData.subject || 'New Ticket',
-            excerpt: newTicketData.content?.substring(0, 50) + '...' || '',
-            customer: newTicketData.customer!,
-            priority: newTicketData.priority || 'medium',
-            category: newTicketData.category || 'general',
-            date: 'Just now',
-            aiStatus: 'pending',
-            sentiment: 5,
-            content: newTicketData.content || '',
-            ...newTicketData
-        };
-        setTickets([newTicket, ...tickets]);
+    const handleCreateTicket = async (req: CreateTicketRequest) => {
+        try {
+            const { ticket, runId } = await createTicket.mutateAsync(req);
+            addToast(
+                'success',
+                'Ticket Created',
+                runId ? `AI run queued for ticket ${ticket.ticketNumber}.` : `Ticket ${ticket.ticketNumber} created.`
+            );
+            setIsNewTicketModalOpen(false);
+        } catch (err: any) {
+            addToast('error', 'Create Failed', err?.message ?? 'Could not create ticket.');
+            throw err;
+        }
     };
 
     return (
@@ -211,9 +156,16 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
             <div className="data-table rounded-2xl">
                 {/* Header */}
                 <div className="table-header flex-wrap gap-4">
-                    {/* ... existing header content ... */}
+                    <div className="search-input max-w-md flex-1">
+                        <Search className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />
+                        <input
+                            type="text"
+                            placeholder="Search tickets..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
 
-                    {/* New Ticket */}
                     <motion.button
                         onClick={() => setIsNewTicketModalOpen(true)}
                         className="btn btn-primary"
@@ -224,11 +176,10 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                     </motion.button>
                 </div>
 
-
                 {/* Tabs */}
                 <div className="px-6 py-4 border-b flex items-center gap-2" style={{ borderColor: 'var(--border-primary)' }}>
                     <div className="tab-group">
-                        {tabs.map(tab => (
+                        {tabs.map((tab) => (
                             <motion.button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
@@ -240,11 +191,11 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                                 <span
                                     className="px-1.5 py-0.5 rounded text-xs font-medium tabular-nums"
                                     style={{
-                                        background: tab.id === 'drafts_ready' && activeTab === tab.id ? 'var(--accent-green)' : 'var(--bg-tertiary)',
-                                        color: tab.id === 'drafts_ready' && activeTab === tab.id ? '#0f172a' : 'var(--text-tertiary)',
+                                        background: tab.id === 'draft_ready' && activeTab === tab.id ? 'var(--accent-green)' : 'var(--bg-tertiary)',
+                                        color: tab.id === 'draft_ready' && activeTab === tab.id ? '#0f172a' : 'var(--text-tertiary)',
                                     }}
                                 >
-                                    {getTabCount(tab.id)}
+                                    {activeTab === tab.id ? tickets.length : '—'}
                                 </span>
                             </motion.button>
                         ))}
@@ -265,15 +216,33 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                     <div className="w-28 font-mono">Date</div>
                     <div className="w-24">Category</div>
                     <div className="w-40">Customer</div>
-                    <div className="w-36">AI Status</div>
+                    <div className="w-36">Status</div>
                     <div className="w-20">Priority</div>
                     <div className="w-24">Sentiment</div>
                     <div className="w-24" />
                 </div>
 
+                {/* Loading state */}
+                {ticketsQuery.isLoading && (
+                    <div className="py-10 text-center">
+                        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                            Loading tickets...
+                        </p>
+                    </div>
+                )}
+
+                {/* Error state */}
+                {ticketsQuery.error && !ticketsQuery.isLoading && (
+                    <div className="py-10 text-center">
+                        <p className="text-sm" style={{ color: 'var(--status-pending)' }}>
+                            Failed to load tickets.
+                        </p>
+                    </div>
+                )}
+
                 {/* Table Rows */}
                 <AnimatePresence mode="popLayout">
-                    {filteredTickets.map((ticket, index) => (
+                    {tickets.map((ticket, index) => (
                         <motion.div
                             key={ticket.id}
                             layout
@@ -283,8 +252,6 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                             transition={{ delay: index * 0.03 }}
                             className="table-row h-16 group"
                             onClick={() => handleRowClick(ticket)}
-                            onMouseEnter={() => setHoveredRow(ticket.id)}
-                            onMouseLeave={() => setHoveredRow(null)}
                         >
                             {/* Checkbox */}
                             <div className="w-12">
@@ -304,26 +271,36 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
 
                             {/* Date */}
                             <div className="w-28">
-                                <span className="font-mono text-xs text-slate-400 tabular-nums">{ticket.date}</span>
+                                <span className="font-mono text-xs text-slate-400 tabular-nums">{formatTicketDate(ticket.createdAt)}</span>
                             </div>
 
                             {/* Category */}
                             <div className="w-24">
-                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{getCategoryLabel(ticket.category)}</span>
+                                <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                                    {getCategoryLabel(ticket.category)}
+                                </span>
                             </div>
 
                             {/* Customer */}
                             <div className="w-40 flex items-center gap-3">
-                                <div className="avatar text-xs">{ticket.customer.name.split(' ').map(n => n[0]).join('')}</div>
-                                <span className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>{ticket.customer.name}</span>
+                                <div className="avatar text-xs">
+                                    {ticket.customer.name
+                                        .split(' ')
+                                        .filter(Boolean)
+                                        .map((n) => n[0])
+                                        .join('')}
+                                </div>
+                                <span className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>
+                                    {ticket.customer.name}
+                                </span>
                             </div>
 
-                            {/* AI Status with Confidence */}
+                            {/* Status with Confidence */}
                             <div className="w-36 flex items-center gap-2">
-                                <ConfidenceMiniRing value={getConfidence(ticket)} />
-                                <span className={`badge ${getAiStatusClass(ticket.aiStatus)}`}>
+                                <ConfidenceMiniRing value={getTicketConfidence(ticket)} />
+                                <span className={`badge ${getTicketStageClass(ticket)}`}>
                                     {ticket.aiStatus === 'draft_ready' && <Sparkles className="w-3 h-3" />}
-                                    {getAiStatusLabel(ticket.aiStatus)}
+                                    {getTicketStageLabel(ticket)}
                                 </span>
                             </div>
 
@@ -332,7 +309,12 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                                 <span
                                     className="text-sm font-medium"
                                     style={{
-                                        color: ticket.priority === 'high' ? '#ef4444' : ticket.priority === 'medium' ? '#f59e0b' : 'var(--text-secondary)',
+                                        color:
+                                            ticket.priority === 'high'
+                                                ? '#ef4444'
+                                                : ticket.priority === 'medium'
+                                                  ? '#f59e0b'
+                                                  : 'var(--text-secondary)',
                                     }}
                                 >
                                     {getPriorityLabel(ticket.priority)}
@@ -342,10 +324,12 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                             {/* Sentiment */}
                             <div className="w-24 flex items-center gap-1">
                                 <span>{getSentimentEmoji(ticket.sentiment)}</span>
-                                <span className="text-sm tabular-nums" style={{ color: 'var(--text-tertiary)' }}>{ticket.sentiment}/10</span>
+                                <span className="text-sm tabular-nums" style={{ color: 'var(--text-tertiary)' }}>
+                                    {ticket.sentiment == null ? '—' : `${ticket.sentiment}/10`}
+                                </span>
                             </div>
 
-                            {/* Quick Actions (reveal on hover) */}
+                            {/* Quick Actions */}
                             <div className="w-24 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <motion.button
                                     onClick={(e) => handleQuickArchive(ticket, e)}
@@ -371,25 +355,48 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                 </AnimatePresence>
 
                 {/* Empty State */}
-                {filteredTickets.length === 0 && (
+                {!ticketsQuery.isLoading && tickets.length === 0 && (
                     <div className="py-16 text-center">
-                        <p className="text-lg font-medium" style={{ color: 'var(--text-secondary)' }}>No tickets found</p>
-                        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>All caught up! 🎉</p>
+                        <p className="text-lg font-medium" style={{ color: 'var(--text-secondary)' }}>
+                            No tickets found
+                        </p>
+                        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                            All caught up!
+                        </p>
                     </div>
                 )}
 
                 {/* Pagination */}
-                {filteredTickets.length > 0 && (
-                    <div className="pagination py-4">
-                        <motion.button className="page-btn" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                {tickets.length > 0 && (
+                    <div className="pagination py-4 flex items-center justify-center gap-3">
+                        <motion.button
+                            className="page-btn"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            disabled={cursorStack.length === 0}
+                            onClick={() => {
+                                if (cursorStack.length === 0) return;
+                                const prev = cursorStack[cursorStack.length - 1];
+                                setCursorStack((s) => s.slice(0, -1));
+                                setCursor(prev);
+                            }}
+                        >
                             <ChevronLeft className="w-4 h-4" />
                         </motion.button>
-                        <motion.button className="page-btn active" whileTap={{ scale: 0.9 }}>1</motion.button>
-                        <motion.button className="page-btn" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.9 }}>2</motion.button>
-                        <motion.button className="page-btn" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.9 }}>3</motion.button>
-                        <span className="px-2" style={{ color: 'var(--text-tertiary)' }}>...</span>
-                        <motion.button className="page-btn" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.9 }}>13</motion.button>
-                        <motion.button className="page-btn" whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                        <span className="text-sm tabular-nums" style={{ color: 'var(--text-tertiary)' }}>
+                            Page {page}
+                        </span>
+                        <motion.button
+                            className="page-btn"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            disabled={!nextCursor}
+                            onClick={() => {
+                                if (!nextCursor) return;
+                                setCursorStack((s) => [...s, cursor]);
+                                setCursor(nextCursor);
+                            }}
+                        >
                             <ChevronRight className="w-4 h-4" />
                         </motion.button>
                     </div>
@@ -401,16 +408,11 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                 ticket={selectedTicket}
                 isOpen={isPanelOpen}
                 onClose={handleClosePanel}
-                onSend={handleSend}
-                onArchive={handleArchive}
+                onTicketUpdated={(t) => setSelectedTicket(t)}
             />
 
             {/* New Ticket Modal */}
-            <NewTicketModal
-                isOpen={isNewTicketModalOpen}
-                onClose={() => setIsNewTicketModalOpen(false)}
-                onSubmit={handleCreateTicket}
-            />
+            <NewTicketModal isOpen={isNewTicketModalOpen} onClose={() => setIsNewTicketModalOpen(false)} onSubmit={handleCreateTicket} />
         </>
     );
 }

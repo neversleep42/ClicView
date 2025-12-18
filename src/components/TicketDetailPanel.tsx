@@ -1,82 +1,96 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-    X,
-    Sparkles,
-    Send,
-    RefreshCcw,
-    ThumbsUp,
-    ThumbsDown,
-    Clock,
-    User,
-    Archive,
-    Loader2
-} from 'lucide-react';
-import { Ticket, getCategoryLabel, getSentimentEmoji } from '@/lib/data';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Archive, Clock, Loader2, RefreshCcw, Send, Sparkles, ThumbsDown, ThumbsUp, User, X } from 'lucide-react';
+
+import type { TicketDTO } from '@/lib/api/contracts';
+import { useArchiveTicket, usePatchTicket, useTriggerAIRun } from '@/hooks/useTickets';
+import { formatTicketDate, getCategoryLabel, getSentimentEmoji } from '@/lib/ticketUi';
+
 import { useToast } from './Toast';
 
 interface TicketDetailPanelProps {
-    ticket: Ticket | null;
+    ticket: TicketDTO | null;
     isOpen: boolean;
     onClose: () => void;
-    onSend?: (ticketId: string) => void;
-    onArchive?: (ticketId: string) => void;
+    onTicketUpdated?: (ticket: TicketDTO) => void;
 }
 
-export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }: TicketDetailPanelProps) {
+export function TicketDetailPanel({ ticket, isOpen, onClose, onTicketUpdated }: TicketDetailPanelProps) {
     const { addToast } = useToast();
-    const [isSending, setIsSending] = useState(false);
-    const [isArchiving, setIsArchiving] = useState(false);
-    const [isRegenerating, setIsRegenerating] = useState(false);
-    const [draftContent, setDraftContent] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    // Initialize draft content when ticket changes
+    const patchTicket = usePatchTicket();
+    const archiveTicket = useArchiveTicket();
+    const triggerRun = useTriggerAIRun();
+
+    const [draftContent, setDraftContent] = useState('');
+
     useEffect(() => {
-        if (ticket?.draftResponse) {
-            setDraftContent(ticket.draftResponse);
-        } else {
-            setDraftContent('');
-        }
-    }, [ticket]);
+        setDraftContent(ticket?.draftResponse ?? '');
+    }, [ticket?.id, ticket?.draftResponse]);
 
     if (!ticket) return null;
 
-    const handleSend = async () => {
-        setIsSending(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setIsSending(false);
+    const saveDraftIfDirty = async () => {
+        const current = ticket.draftResponse ?? '';
+        if (draftContent === current) return;
 
-        addToast('success', 'Reply Sent', `Response sent to ${ticket.customer.name}`);
-        onSend?.(ticket.id);
-        onClose();
+        const nextDraft = draftContent.trim().length === 0 ? null : draftContent;
+        const res = await patchTicket.mutateAsync({
+            id: ticket.id,
+            body: { draftResponse: nextDraft },
+        });
+        onTicketUpdated?.(res.ticket);
+    };
+
+    const handleSend = async () => {
+        if (draftContent.trim().length === 0) {
+            addToast('warning', 'Draft Empty', 'Write a reply before marking the ticket resolved.');
+            return;
+        }
+
+        try {
+            const res = await patchTicket.mutateAsync({
+                id: ticket.id,
+                body: { status: 'resolved', draftResponse: draftContent },
+            });
+            onTicketUpdated?.(res.ticket);
+            addToast('success', 'Ticket Resolved', `Reply saved and ticket ${ticket.ticketNumber} marked as resolved.`);
+            onClose();
+        } catch (err: any) {
+            addToast('error', 'Send Failed', err?.message ?? 'Could not resolve ticket.');
+        }
     };
 
     const handleArchive = async () => {
-        setIsArchiving(true);
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setIsArchiving(false);
-
-        addToast('info', 'Ticket Archived', `Ticket ${ticket.ticketNumber} moved to archive`);
-        onArchive?.(ticket.id);
-        onClose();
+        try {
+            const res = await archiveTicket.mutateAsync(ticket.id);
+            onTicketUpdated?.(res.ticket);
+            addToast('info', 'Ticket Archived', `Ticket ${ticket.ticketNumber} moved to archive.`);
+            onClose();
+        } catch (err: any) {
+            addToast('error', 'Archive Failed', err?.message ?? 'Could not archive ticket.');
+        }
     };
 
     const handleRegenerate = async () => {
-        setIsRegenerating(true);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setIsRegenerating(false);
-        addToast('success', 'Draft Regenerated', 'AI has created a new response');
+        try {
+            const res = await triggerRun.mutateAsync({ id: ticket.id, force: true });
+            onTicketUpdated?.(res.ticket);
+            addToast('info', 'AI Run Started', 'Regenerating draft in the background.');
+        } catch (err: any) {
+            addToast('error', 'AI Run Failed', err?.message ?? 'Could not start AI run.');
+        }
     };
+
+    const isBusy = patchTicket.isPending || archiveTicket.isPending || triggerRun.isPending;
 
     return (
         <AnimatePresence>
             {isOpen && (
                 <>
-                    {/* Overlay */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -85,7 +99,6 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }
                         className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
                     />
 
-                    {/* Panel */}
                     <motion.div
                         initial={{ x: '100%' }}
                         animate={{ x: 0 }}
@@ -95,10 +108,7 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }
                         style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
                     >
                         {/* Header */}
-                        <div
-                            className="flex items-center justify-between p-5 border-b"
-                            style={{ borderColor: 'var(--border-primary)' }}
-                        >
+                        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: 'var(--border-primary)' }}>
                             <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
                                 Ticket {ticket.ticketNumber}
                             </h2>
@@ -107,9 +117,9 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }
                             </button>
                         </div>
 
-                        {/* Main Content */}
+                        {/* Main */}
                         <div className="flex-1 overflow-y-auto p-5 space-y-6">
-                            {/* Customer Info */}
+                            {/* Customer */}
                             <div className="flex items-center space-x-3 p-3 rounded-xl bg-secondary/50">
                                 <User size={20} className="text-gray-500" />
                                 <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
@@ -117,7 +127,7 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }
                                 </span>
                             </div>
 
-                            {/* Ticket Details */}
+                            {/* Details */}
                             <div className="space-y-3">
                                 <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
                                     {ticket.subject}
@@ -127,7 +137,7 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }
                                 </p>
                                 <div className="flex items-center flex-wrap gap-2 text-xs text-gray-500 pt-2">
                                     <Clock size={14} />
-                                    <span>{ticket.date}</span>
+                                    <span>{formatTicketDate(ticket.createdAt)}</span>
                                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                                         {getCategoryLabel(ticket.category)}
                                     </span>
@@ -135,97 +145,71 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }
                                         {ticket.priority}
                                     </span>
                                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                                        {getSentimentEmoji(ticket.sentiment)} {ticket.sentiment}/10
+                                        {getSentimentEmoji(ticket.sentiment)} {ticket.sentiment == null ? '—/10' : `${ticket.sentiment}/10`}
                                     </span>
                                 </div>
                             </div>
 
-                            {/* AI Draft Response */}
-                            {ticket.draftResponse && (
-                                <div className="border rounded-xl p-4 space-y-3" style={{ borderColor: 'var(--border-primary)' }}>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h4 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                                            <Sparkles size={16} className="text-yellow-500" /> AI Draft Response
-                                        </h4>
-                                        <button
-                                            onClick={handleRegenerate}
-                                            className="btn btn-ghost btn-sm h-8 px-2 text-xs flex items-center gap-1"
-                                            disabled={isRegenerating}
-                                        >
-                                            {isRegenerating ? (
-                                                <Loader2 size={14} className="animate-spin" />
-                                            ) : (
-                                                <RefreshCcw size={14} />
-                                            )}
-                                            {isRegenerating ? 'Regenerating...' : 'Regenerate'}
-                                        </button>
-                                    </div>
-
-                                    {isRegenerating ? (
-                                        <div className="space-y-3 p-4 rounded-xl bg-secondary/30 animate-pulse">
-                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
-                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full" />
-                                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6" />
-                                        </div>
-                                    ) : (
-                                        <textarea
-                                            ref={textareaRef}
-                                            value={draftContent}
-                                            onChange={(e) => setDraftContent(e.target.value)}
-                                            className="w-full p-4 rounded-xl text-sm leading-relaxed resize-none min-h-[200px] outline-none focus:ring-2 focus:ring-primary/20 transition-all bg-secondary/30"
-                                            style={{
-                                                color: 'var(--text-primary)',
-                                            }}
-                                        />
-                                    )}
-
-                                    {/* Feedback */}
-                                    <div className="flex justify-end gap-2 pt-2">
-                                        <button className="btn btn-ghost btn-sm h-8 px-2 flex items-center gap-1 text-gray-500 hover:text-green-500">
-                                            <ThumbsUp size={14} />
-                                        </button>
-                                        <button className="btn btn-ghost btn-sm h-8 px-2 flex items-center gap-1 text-gray-500 hover:text-red-500">
-                                            <ThumbsDown size={14} />
-                                        </button>
-                                    </div>
+                            {/* Draft */}
+                            <div className="border rounded-xl p-4 space-y-3" style={{ borderColor: 'var(--border-primary)' }}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <h4 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                                        <Sparkles size={16} className="text-yellow-500" /> Draft Response
+                                    </h4>
+                                    <button
+                                        onClick={handleRegenerate}
+                                        className="btn btn-ghost btn-sm h-8 px-2 text-xs flex items-center gap-1"
+                                        disabled={triggerRun.isPending || isBusy}
+                                        title="Regenerate AI draft"
+                                    >
+                                        {triggerRun.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+                                        {triggerRun.isPending ? 'Regenerating...' : 'Regenerate'}
+                                    </button>
                                 </div>
-                            )}
+
+                                <textarea
+                                    ref={textareaRef}
+                                    value={draftContent}
+                                    onChange={(e) => setDraftContent(e.target.value)}
+                                    onBlur={() => {
+                                        void saveDraftIfDirty().catch((err: any) =>
+                                            addToast('error', 'Save Failed', err?.message ?? 'Could not save draft.')
+                                        );
+                                    }}
+                                    className="w-full p-4 rounded-xl text-sm leading-relaxed resize-none min-h-[200px] outline-none focus:ring-2 focus:ring-primary/20 transition-all bg-secondary/30"
+                                    style={{ color: 'var(--text-primary)' }}
+                                />
+
+                                <div className="flex justify-end gap-2 pt-2">
+                                    <button className="btn btn-ghost btn-sm h-8 px-2 flex items-center gap-1 text-gray-500 hover:text-green-500" disabled={isBusy}>
+                                        <ThumbsUp size={14} />
+                                    </button>
+                                    <button className="btn btn-ghost btn-sm h-8 px-2 flex items-center gap-1 text-gray-500 hover:text-red-500" disabled={isBusy}>
+                                        <ThumbsDown size={14} />
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Footer Actions */}
+                        {/* Footer */}
                         <div
                             className="sticky bottom-0 flex items-center justify-between p-5 border-t bg-white dark:bg-slate-900"
                             style={{ background: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
                         >
-                            <button
-                                onClick={() => textareaRef.current?.focus()}
-                                className="btn btn-secondary"
-                            >
+                            <button onClick={() => textareaRef.current?.focus()} className="btn btn-secondary" disabled={isBusy}>
                                 Edit Draft
                             </button>
                             <div className="flex space-x-3">
                                 <button
                                     onClick={handleArchive}
                                     className="btn btn-secondary flex items-center gap-2"
-                                    disabled={isArchiving}
+                                    disabled={archiveTicket.isPending || isBusy}
                                 >
-                                    {isArchiving ? (
-                                        <Loader2 size={16} className="animate-spin" />
-                                    ) : (
-                                        <Archive size={16} />
-                                    )}
+                                    {archiveTicket.isPending ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
                                     Archive
                                 </button>
-                                <button
-                                    onClick={handleSend}
-                                    className="btn btn-primary flex items-center gap-2"
-                                    disabled={isSending}
-                                >
-                                    {isSending ? (
-                                        <Loader2 size={16} className="animate-spin" />
-                                    ) : (
-                                        <Send size={16} />
-                                    )}
+                                <button onClick={handleSend} className="btn btn-primary flex items-center gap-2" disabled={patchTicket.isPending || isBusy}>
+                                    {patchTicket.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                                     Send Reply
                                 </button>
                             </div>
@@ -236,3 +220,4 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onSend, onArchive }
         </AnimatePresence>
     );
 }
+

@@ -6,26 +6,16 @@ import { Sidebar } from '@/components/Sidebar';
 import { Search, X, Mail, Package, DollarSign, Calendar, Trash2, Edit2, Save, XCircle } from 'lucide-react';
 import { AddCustomerModal } from '@/components/AddCustomerModal';
 import { useToast } from '@/components/Toast';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useCreateCustomer, useCustomers, useDeleteCustomer, usePatchCustomer } from '@/hooks/useCustomers';
+import { isApiClientError } from '@/lib/apiClient';
+import type { CreateCustomerRequest, CustomerDTO, PatchCustomerRequest } from '@/lib/api/contracts';
 
-// Mock customer data
-const mockCustomers = [
-    { id: '1', name: 'Emma Johnson', email: 'emma.j@email.com', orders: 12, lastTicket: '2024-06-27', ltv: 2450 },
-    { id: '2', name: 'Michael Chen', email: 'm.chen@email.com', orders: 8, lastTicket: '2024-06-27', ltv: 1890 },
-    { id: '3', name: 'Sarah Miller', email: 'sarah.m@email.com', orders: 15, lastTicket: '2024-06-26', ltv: 3200 },
-    { id: '4', name: 'James Wilson', email: 'j.wilson@email.com', orders: 5, lastTicket: '2024-06-24', ltv: 890 },
-    { id: '5', name: 'Lisa Park', email: 'lisa.p@email.com', orders: 23, lastTicket: '2024-06-24', ltv: 4560 },
-    { id: '6', name: 'Robert Davis', email: 'r.davis@email.com', orders: 7, lastTicket: '2024-06-23', ltv: 1200 },
-    { id: '7', name: 'Anna Thompson', email: 'anna.t@email.com', orders: 31, lastTicket: '2024-06-22', ltv: 6780 },
-    { id: '8', name: 'David Kim', email: 'd.kim@email.com', orders: 4, lastTicket: '2024-06-21', ltv: 650 },
-];
-
-interface Customer {
-    id: string;
-    name: string;
-    email: string;
-    orders: number;
-    lastTicket: string;
-    ltv: number;
+function formatLastTicket(lastTicketAt: string | null) {
+    if (!lastTicketAt) return 'Never';
+    const d = new Date(lastTicketAt);
+    if (Number.isNaN(d.getTime())) return lastTicketAt;
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
 // Customer Profile Drawer
@@ -35,34 +25,53 @@ function CustomerDrawer({
     onDelete,
     onUpdate
 }: {
-    customer: Customer | null;
+    customer: CustomerDTO | null;
     onClose: () => void;
-    onDelete: (id: string) => void;
-    onUpdate: (id: string, data: Partial<Customer>) => void;
+    onDelete: (id: string) => Promise<void> | void;
+    onUpdate: (id: string, data: PatchCustomerRequest) => Promise<void> | void;
 }) {
     const { addToast } = useToast();
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState<Partial<Customer>>({});
+    const [formData, setFormData] = useState<Partial<CustomerDTO>>({});
 
     if (!customer) return null;
 
     // Initialize form data when entering edit mode
     const startEditing = () => {
-        setFormData(customer);
+        setFormData({
+            name: customer.name,
+            email: customer.email,
+            orders: customer.orders,
+            ltv: customer.ltv,
+        });
         setIsEditing(true);
     };
 
-    const handleSave = () => {
-        onUpdate(customer.id, formData);
-        setIsEditing(false);
-        addToast('success', 'Customer Updated', `${formData.name || customer.name}'s profile has been updated.`);
+    const handleSave = async () => {
+        const patch: PatchCustomerRequest = {};
+        if (formData.name !== undefined) patch.name = formData.name;
+        if (formData.email !== undefined) patch.email = formData.email;
+        if (formData.orders !== undefined) patch.orders = formData.orders;
+        if (formData.ltv !== undefined) patch.ltv = formData.ltv;
+
+        try {
+            await onUpdate(customer.id, patch);
+            setIsEditing(false);
+            addToast('success', 'Customer Updated', `${formData.name || customer.name}'s profile has been updated.`);
+        } catch (err: any) {
+            addToast('error', 'Update Failed', err?.message ?? 'Could not update customer.');
+        }
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (confirm('Are you sure you want to delete this customer?')) {
-            onDelete(customer.id);
-            onClose();
-            addToast('info', 'Customer Deleted', `${customer.name} has been removed.`);
+            try {
+                await onDelete(customer.id);
+                onClose();
+                addToast('info', 'Customer Deleted', `${customer.name} has been removed.`);
+            } catch (err: any) {
+                addToast('error', 'Delete Failed', err?.message ?? 'Could not delete customer.');
+            }
         }
     };
 
@@ -166,7 +175,7 @@ function CustomerDrawer({
                                 <input
                                     type="number"
                                     value={formData.orders || 0}
-                                    onChange={e => setFormData({ ...formData, orders: parseInt(e.target.value) })}
+                                    onChange={e => setFormData({ ...formData, orders: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
                                     className="w-full bg-transparent border-b border-gray-700 text-2xl font-semibold tabular-nums focus:outline-none focus:border-indigo-500"
                                     style={{ color: 'var(--text-primary)' }}
                                 />
@@ -183,7 +192,7 @@ function CustomerDrawer({
                                 <input
                                     type="number"
                                     value={formData.ltv || 0}
-                                    onChange={e => setFormData({ ...formData, ltv: parseInt(e.target.value) })}
+                                    onChange={e => setFormData({ ...formData, ltv: Math.max(0, Number(e.target.value) || 0) })}
                                     className="w-full bg-transparent border-b border-gray-700 text-2xl font-semibold tabular-nums focus:outline-none focus:border-indigo-500"
                                     style={{ color: 'var(--text-primary)' }}
                                 />
@@ -253,39 +262,48 @@ function CustomerDrawer({
 
 export default function CustomersPage() {
     const { addToast } = useToast();
-    const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const debouncedSearch = useDebouncedValue(searchQuery, 300);
+
+    const customersQuery = useCustomers({
+        limit: 100,
+        cursor: null,
+        sort: 'name',
+        order: 'asc',
+        search: debouncedSearch,
+    });
+    const customers = customersQuery.data?.items ?? [];
+    const filteredCustomers = customers;
+
+    const createCustomer = useCreateCustomer();
+    const patchCustomer = usePatchCustomer();
+    const deleteCustomer = useDeleteCustomer();
+
+    const [selectedCustomer, setSelectedCustomer] = useState<CustomerDTO | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-    const filteredCustomers = customers.filter(c =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.email.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    const handleAddCustomer = (newCustomer: any) => {
-        const customer: Customer = {
-            id: Math.random().toString(36).substr(2, 9),
-            name: newCustomer.name,
-            email: newCustomer.email,
-            orders: 0,
-            lastTicket: 'Never',
-            ltv: 0
-        };
-        setCustomers([customer, ...customers]);
-        addToast('success', 'Customer Added', `${customer.name} has been added to the database.`);
-    };
-
-    const handleUpdateCustomer = (id: string, data: Partial<Customer>) => {
-        setCustomers(customers.map(c => c.id === id ? { ...c, ...data } : c));
-        // Also update selected customer to reflect changes immediately in drawer
-        if (selectedCustomer?.id === id) {
-            setSelectedCustomer({ ...selectedCustomer, ...data } as Customer);
+    const handleAddCustomer = async (newCustomer: CreateCustomerRequest) => {
+        try {
+            const { customer } = await createCustomer.mutateAsync(newCustomer);
+            addToast('success', 'Customer Added', `${customer.name} has been added to the database.`);
+            setIsAddModalOpen(false);
+        } catch (err: any) {
+            if (isApiClientError(err) && err.code === 'CUSTOMER_EMAIL_EXISTS') {
+                addToast('warning', 'Customer Exists', 'Customer email already exists in this workspace.');
+            } else {
+                addToast('error', 'Create Failed', err?.message ?? 'Could not create customer.');
+            }
+            throw err;
         }
     };
 
-    const handleDeleteCustomer = (id: string) => {
-        setCustomers(customers.filter(c => c.id !== id));
+    const handleUpdateCustomer = async (id: string, data: PatchCustomerRequest) => {
+        const { customer } = await patchCustomer.mutateAsync({ id, body: data });
+        if (selectedCustomer?.id === id) setSelectedCustomer(customer);
+    };
+
+    const handleDeleteCustomer = async (id: string) => {
+        await deleteCustomer.mutateAsync(id);
         setSelectedCustomer(null);
     };
 
@@ -334,40 +352,60 @@ export default function CustomersPage() {
                         <div className="w-32 tabular-nums text-right">Lifetime Value</div>
                     </div>
 
-                    {filteredCustomers.map((customer, i) => (
-                        <motion.div
-                            key={customer.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.05 }}
-                            className="table-row cursor-pointer"
-                            onClick={() => setSelectedCustomer(customer)}
-                        >
-                            <div className="w-[280px] flex items-center gap-3">
-                                <div className="avatar">
-                                    {customer.name.split(' ').map(n => n[0]).join('')}
-                                </div>
-                                <div>
-                                    <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{customer.name}</p>
-                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>{customer.email}</p>
-                                </div>
-                            </div>
-                            <div className="w-32">
-                                <span className="tabular-nums" style={{ color: 'var(--text-secondary)' }}>{customer.orders}</span>
-                            </div>
-                            <div className="w-40">
-                                <span className="text-sm font-mono" style={{ color: 'var(--text-tertiary)' }}>{customer.lastTicket}</span>
-                            </div>
-                            <div className="w-32 text-right">
-                                <span className="font-medium tabular-nums" style={{ color: 'var(--accent-green-dark)' }}>
-                                    ${customer.ltv.toLocaleString()}
-                                </span>
-                            </div>
-                        </motion.div>
-                    ))}
+                    {customersQuery.isLoading && (
+                        <div className="p-8 text-center" style={{ color: 'var(--text-tertiary)' }}>
+                            Loading customers...
+                        </div>
+                    )}
 
-                    {filteredCustomers.length === 0 && (
-                        <div className="p-8 text-center text-gray-500">
+                    {!customersQuery.isLoading && customersQuery.error && (
+                        <div className="p-8 text-center" style={{ color: 'var(--status-pending)' }}>
+                            Failed to load customers.
+                        </div>
+                    )}
+
+                    {!customersQuery.isLoading &&
+                        !customersQuery.error &&
+                        filteredCustomers.map((customer, i) => (
+                            <motion.div
+                                key={customer.id}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.05 }}
+                                className="table-row cursor-pointer"
+                                onClick={() => setSelectedCustomer(customer)}
+                            >
+                                <div className="w-[280px] flex items-center gap-3">
+                                    <div className="avatar">{customer.name.split(' ').map(n => n[0]).join('')}</div>
+                                    <div>
+                                        <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                                            {customer.name}
+                                        </p>
+                                        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                                            {customer.email}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="w-32">
+                                    <span className="tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+                                        {customer.orders}
+                                    </span>
+                                </div>
+                                <div className="w-40">
+                                    <span className="text-sm font-mono" style={{ color: 'var(--text-tertiary)' }}>
+                                        {formatLastTicket(customer.lastTicketAt)}
+                                    </span>
+                                </div>
+                                <div className="w-32 text-right">
+                                    <span className="font-medium tabular-nums" style={{ color: 'var(--accent-green-dark)' }}>
+                                        ${customer.ltv.toLocaleString()}
+                                    </span>
+                                </div>
+                            </motion.div>
+                        ))}
+
+                    {!customersQuery.isLoading && !customersQuery.error && filteredCustomers.length === 0 && (
+                        <div className="p-8 text-center" style={{ color: 'var(--text-tertiary)' }}>
                             No customers found.
                         </div>
                     )}
