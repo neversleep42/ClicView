@@ -18,6 +18,7 @@ import {
 import { AddTemplateModal } from '@/components/AddTemplateModal';
 import { useToast } from '@/components/Toast';
 import { useAISettings, usePatchAISettings } from '@/hooks/useAISettings';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import { useCreateTemplate, useTemplates } from '@/hooks/useTemplates';
 import type { AIPersona, AISettingsDTO, CreateTemplateRequest, TemplateDTO } from '@/lib/api/contracts';
 
@@ -90,6 +91,21 @@ function AISettingsScreen({
     onCreateTemplate: (template: CreateTemplateRequest) => Promise<void>;
 }) {
     const { addToast } = useToast();
+    const analyticsQuery = useAnalytics('7d');
+    const analytics = analyticsQuery.data?.analytics;
+
+    const totalTickets = analytics?.summary.totalTickets;
+    const aiResolutionRate = analytics?.summary.aiResolutionRate;
+    const responsesLabel = analyticsQuery.isLoading
+        ? '...'
+        : totalTickets == null
+            ? 'N/A'
+            : String(totalTickets);
+    const resolutionLabel = analyticsQuery.isLoading
+        ? '...'
+        : aiResolutionRate == null
+            ? 'N/A'
+            : `${Math.round(aiResolutionRate * 100)}%`;
 
     const [settings, setSettings] = useState<LocalAISettings>(() => ({
         aiEnabled: initialSettings.aiEnabled,
@@ -437,16 +453,18 @@ function TemplateCard({ title, category, preview }: { title: string; category: s
                         >
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="ai-status-dot" />
-                                <span className="font-medium" style={{ color: 'var(--accent-green-dark)' }}>AI Agent Active</span>
+                                <span className="font-medium" style={{ color: 'var(--accent-green-dark)' }}>
+                                    {settings.aiEnabled ? 'AI Agent Active' : 'AI Agent Disabled'}
+                                </span>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>847</p>
-                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Responses today</p>
+                                    <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{responsesLabel}</p>
+                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Tickets (7d)</p>
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>94%</p>
-                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Accuracy rate</p>
+                                    <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{resolutionLabel}</p>
+                                    <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>AI Resolution (7d)</p>
                                 </div>
                             </div>
                         </motion.div>

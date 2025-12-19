@@ -1,12 +1,9 @@
-'use client';
+﻿'use client';
 
 import { motion } from 'framer-motion';
 import {
-    TrendingUp,
-    TrendingDown,
     Clock,
     Star,
-    Zap,
     FileText,
     PauseCircle,
     Download,
@@ -14,20 +11,33 @@ import {
     ArrowRight,
     Activity
 } from 'lucide-react';
-import { Sidebar } from '@/components/Sidebar';
-import { dashboardStats } from '@/lib/data';
 import Link from 'next/link';
 
-// AI Activity mini chart data
-const activityData = [
-    { received: 12, resolved: 10 },
-    { received: 15, resolved: 14 },
-    { received: 8, resolved: 8 },
-    { received: 18, resolved: 16 },
-    { received: 14, resolved: 13 },
-    { received: 20, resolved: 18 },
-    { received: 16, resolved: 15 },
-];
+import { Sidebar } from '@/components/Sidebar';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import type { AnalyticsDTO } from '@/lib/api/contracts';
+
+type ActivityPoint = { received: number; resolved: number };
+
+function buildActivityData(analytics: AnalyticsDTO | undefined): ActivityPoint[] {
+    if (!analytics) return [];
+    const totalTickets = analytics.summary.totalTickets;
+    const resolvedTickets = analytics.summary.resolvedTickets;
+    const resolvedRate = totalTickets > 0 ? resolvedTickets / totalTickets : 0;
+
+    return analytics.ticketVolume.map((bucket) => ({
+        received: bucket.tickets,
+        resolved: Math.round(bucket.tickets * resolvedRate),
+    }));
+}
+
+function formatDuration(seconds: number | null | undefined) {
+    if (seconds == null) return '-';
+    const s = Math.max(0, Math.floor(seconds));
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins}m ${secs}s`;
+}
 
 // Quick actions
 const quickActions = [
@@ -37,12 +47,20 @@ const quickActions = [
 ];
 
 // Mini bar chart component
-function MiniChart() {
-    const maxValue = Math.max(...activityData.flatMap(d => [d.received, d.resolved]));
+function MiniChart({ data }: { data: ActivityPoint[] }) {
+    if (data.length === 0) {
+        return (
+            <div className="h-24 mt-4 flex items-center justify-center text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                No activity yet
+            </div>
+        );
+    }
+
+    const maxValue = Math.max(...data.flatMap(d => [d.received, d.resolved]), 1);
 
     return (
         <div className="flex items-end gap-2 h-24 mt-4">
-            {activityData.map((day, i) => (
+            {data.map((day, i) => (
                 <div key={i} className="flex-1 flex gap-0.5">
                     <motion.div
                         initial={{ height: 0 }}
@@ -65,10 +83,12 @@ function MiniChart() {
 }
 
 // Confidence Ring SVG
-function ConfidenceRing({ value }: { value: number }) {
+function ConfidenceRing({ value }: { value: number | null }) {
     const radius = 40;
     const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (value / 100) * circumference;
+    const safeValue = value ?? 0;
+    const offset = circumference - (safeValue / 100) * circumference;
+    const label = value == null ? '-' : `${Math.round(value)}%`;
 
     return (
         <svg width="100" height="100" className="mx-auto">
@@ -105,13 +125,29 @@ function ConfidenceRing({ value }: { value: number }) {
                 className="text-xl font-semibold"
                 style={{ fill: 'var(--text-primary)' }}
             >
-                {value}%
+                {label}
             </text>
         </svg>
     );
 }
 
 export default function DashboardPage() {
+    const analyticsQuery = useAnalytics('7d');
+    const analytics = analyticsQuery.data?.analytics;
+
+    const activityData = buildActivityData(analytics);
+    const totalTickets = analytics?.summary.totalTickets ?? null;
+    const resolvedTickets = analytics?.summary.resolvedTickets ?? null;
+    const resolutionRate = totalTickets && resolvedTickets != null ? resolvedTickets / totalTickets : null;
+    const resolutionRateLabel = resolutionRate == null ? '-' : `${Math.round(resolutionRate * 100)}%`;
+
+    const avgHandle = analytics?.summary.avgHandleTimeSeconds ?? null;
+    const csatScore = analytics?.summary.csatScore ?? null;
+    const aiResolutionRate = analytics?.summary.aiResolutionRate ?? null;
+
+    const openTickets = analytics?.summary.openTickets ?? null;
+    const humanNeeded = analytics?.summary.humanNeededTickets ?? null;
+
     return (
         <div className="min-h-screen" style={{ background: 'var(--bg-secondary)' }}>
             <Sidebar />
@@ -124,10 +160,10 @@ export default function DashboardPage() {
                             className="text-2xl font-semibold mb-1"
                             style={{ color: 'var(--text-primary)' }}
                         >
-                            Good afternoon, Alex 👋
+                            Welcome back
                         </h1>
                         <p style={{ color: 'var(--text-secondary)' }}>
-                            Here&apos;s what&apos;s happening with your support tickets today.
+                            Here is what is happening with your support tickets.
                         </p>
                     </div>
                     <div className="live-indicator">
@@ -158,7 +194,7 @@ export default function DashboardPage() {
                                     className="text-2xl font-semibold"
                                     style={{ color: 'var(--text-primary)' }}
                                 >
-                                    Focus of the Day
+                                    Focus of the Week
                                 </p>
                             </div>
                             <div className="ai-status-dot" />
@@ -168,10 +204,10 @@ export default function DashboardPage() {
                             className="text-sm mb-4"
                             style={{ color: 'var(--text-secondary)' }}
                         >
-                            Incoming tickets vs. AI resolutions this week
+                            Incoming tickets vs resolved (estimated) in the last 7 days
                         </p>
 
-                        <MiniChart />
+                        <MiniChart data={activityData} />
 
                         <div className="flex items-center justify-between mt-4 pt-4 border-t" style={{ borderColor: 'var(--border-primary)' }}>
                             <div className="flex items-center gap-4">
@@ -185,7 +221,7 @@ export default function DashboardPage() {
                                 </div>
                             </div>
                             <span className="text-sm font-medium" style={{ color: 'var(--accent-green-dark)' }}>
-                                91% resolution rate today
+                                {resolutionRateLabel} resolution rate (7d)
                             </span>
                         </div>
                     </motion.div>
@@ -199,16 +235,12 @@ export default function DashboardPage() {
                     >
                         <div className="flex items-start justify-between mb-4">
                             <Clock className="w-5 h-5" style={{ color: 'var(--accent-green)' }} />
-                            <div className={`trend ${dashboardStats.avgResponseTime.trendDirection === 'down' ? 'trend-up' : 'trend-down'}`}>
-                                <TrendingDown className="w-3 h-3" />
-                                {dashboardStats.avgResponseTime.trend}
-                            </div>
                         </div>
                         <p
                             className="text-3xl font-semibold tabular-nums mb-1"
                             style={{ color: 'var(--text-primary)' }}
                         >
-                            {dashboardStats.avgResponseTime.value}
+                            {formatDuration(avgHandle)}
                         </p>
                         <p
                             className="text-sm"
@@ -227,16 +259,12 @@ export default function DashboardPage() {
                     >
                         <div className="flex items-start justify-between mb-4">
                             <Star className="w-5 h-5" style={{ color: 'var(--status-delivery)' }} />
-                            <div className="trend trend-up">
-                                <TrendingUp className="w-3 h-3" />
-                                {dashboardStats.customerSatisfaction.trend}
-                            </div>
                         </div>
                         <p
                             className="text-3xl font-semibold tabular-nums mb-1"
                             style={{ color: 'var(--text-primary)' }}
                         >
-                            {dashboardStats.customerSatisfaction.value}
+                            {csatScore == null ? '-' : csatScore.toFixed(1)}
                         </p>
                         <p
                             className="text-sm"
@@ -283,17 +311,16 @@ export default function DashboardPage() {
                         transition={{ delay: 0.5 }}
                         className="col-span-3 bento-card flex flex-col items-center justify-center"
                     >
-                        <ConfidenceRing value={85} />
+                        <ConfidenceRing value={aiResolutionRate == null ? null : aiResolutionRate * 100} />
                         <p
                             className="text-sm mt-3"
                             style={{ color: 'var(--text-tertiary)' }}
                         >
                             AI Resolution Rate
                         </p>
-                        <div className="trend trend-up mt-1">
-                            <TrendingUp className="w-3 h-3" />
-                            +5% from last week
-                        </div>
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                            Last 7 days
+                        </span>
                     </motion.div>
                 </div>
 
@@ -318,13 +345,13 @@ export default function DashboardPage() {
                                     className="font-medium"
                                     style={{ color: 'var(--text-primary)' }}
                                 >
-                                    14 tickets need your attention
+                                    {openTickets == null ? 'Open tickets: -' : `Open tickets: ${openTickets}`}
                                 </p>
                                 <p
                                     className="text-sm"
                                     style={{ color: 'var(--text-tertiary)' }}
                                 >
-                                    2 marked as high priority
+                                    {humanNeeded == null ? 'Human needed: -' : `Human needed: ${humanNeeded}`}
                                 </p>
                             </div>
                         </div>

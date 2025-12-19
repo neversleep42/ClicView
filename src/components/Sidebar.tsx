@@ -15,20 +15,21 @@ import {
     Sun,
     Bot
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface NavItem {
     name: string;
     href: string;
     icon: React.ReactNode;
-    badge?: number;
 }
 
 const navItems: NavItem[] = [
     { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { name: 'Inbox', href: '/inbox', icon: <Inbox className="w-5 h-5" />, badge: 14 },
+    { name: 'Inbox', href: '/inbox', icon: <Inbox className="w-5 h-5" /> },
     { name: 'Analytics', href: '/analytics', icon: <BarChart3 className="w-5 h-5" /> },
-    { name: 'Customers', href: '/customers', icon: <Users className="w-5 h-5" />, badge: 23 },
+    { name: 'Customers', href: '/customers', icon: <Users className="w-5 h-5" /> },
     { name: 'AI Settings', href: '/ai-settings', icon: <Settings className="w-5 h-5" /> },
     { name: 'Integrations', href: '/integrations', icon: <Puzzle className="w-5 h-5" /> },
 ];
@@ -41,6 +42,32 @@ const bottomItems = [
 export function Sidebar() {
     const pathname = usePathname();
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const [userName, setUserName] = useState<string | null>(null);
+    const [userEmail, setUserEmail] = useState<string | null>(null);
+
+    useEffect(() => {
+        const supabase = createSupabaseBrowserClient();
+        supabase.auth.getUser().then(({ data }) => {
+            const user = data.user;
+            if (!user) return;
+            const metaName = user.user_metadata?.full_name ?? user.user_metadata?.name;
+            const cleanName = typeof metaName === 'string' && metaName.trim().length > 0 ? metaName.trim() : null;
+            setUserName(cleanName);
+            setUserEmail(user.email ?? null);
+        }).catch(() => {});
+    }, []);
+
+    const avatarText = useMemo(() => {
+        const label = userName ?? userEmail ?? 'User';
+        return label
+            .split(' ')
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase())
+            .join('') || 'U';
+    }, [userName, userEmail]);
+
+    const displayName = userName ?? (userEmail ? userEmail.split('@')[0] : 'Signed in');
 
     const toggleDarkMode = () => {
         setIsDarkMode(!isDarkMode);
@@ -75,11 +102,6 @@ export function Sidebar() {
                             <div className={`sidebar-item ${isActive ? 'active' : ''}`}>
                                 {item.icon}
                                 <span className="flex-1">{item.name}</span>
-                                {item.badge && (
-                                    <span className="sidebar-badge">
-                                        {item.badge}
-                                    </span>
-                                )}
                             </div>
                         </Link>
                     );
@@ -142,15 +164,13 @@ export function Sidebar() {
                 style={{ borderColor: 'var(--border-primary)' }}
             >
                 <div className="flex items-center gap-3">
-                    <div className="avatar">
-                        AC
-                    </div>
+                    <div className="avatar">{avatarText}</div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
-                            Alex Chen
+                            {displayName}
                         </p>
                         <p className="text-xs truncate" style={{ color: 'var(--text-tertiary)' }}>
-                            alex@company.com
+                            {userEmail ?? '—'}
                         </p>
                     </div>
                 </div>
