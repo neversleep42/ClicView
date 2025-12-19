@@ -23,7 +23,7 @@ type TicketRow = {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
-  customer?: CustomerRefRow | null;
+  customer?: CustomerRefRow | CustomerRefRow[] | null;
 };
 
 type CustomerRow = {
@@ -108,6 +108,9 @@ export const TICKET_SELECT = `
 `;
 
 export function mapTicketRow(row: TicketRow): TicketDTO {
+  const customer = Array.isArray(row.customer) ? row.customer[0] : row.customer;
+  if (!customer) throw new Error("Ticket row missing customer.");
+
   return {
     id: row.id,
     ticketNumber: row.ticket_number,
@@ -123,9 +126,9 @@ export function mapTicketRow(row: TicketRow): TicketDTO {
     sentiment: row.sentiment == null ? null : Number(row.sentiment),
     draftResponse: row.draft_response,
     customer: {
-      id: row.customer?.id,
-      name: row.customer?.name,
-      email: row.customer?.email,
+      id: customer.id,
+      name: customer.name,
+      email: customer.email,
     },
     archivedAt: row.archived_at,
     createdAt: row.created_at,
