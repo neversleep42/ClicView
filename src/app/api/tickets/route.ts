@@ -22,6 +22,18 @@ const ticketSortSchema = z.enum(["updatedAt", "createdAt"]);
 const prioritySchema = z.enum(["low", "medium", "high"]);
 const categorySchema = z.enum(["refund", "shipping", "product", "billing", "general"]);
 
+type SortValue = string | number;
+
+interface OrFilterable {
+  or(filters: string): this;
+}
+
+interface TicketTabFilterable {
+  not(column: string, operator: string, value: unknown): this;
+  is(column: string, value: unknown): this;
+  eq(column: string, value: unknown): this;
+}
+
 const createTicketSchema = z
   .object({
     subject: z.string().min(3).max(200),
@@ -49,7 +61,7 @@ const createTicketSchema = z
     }
   });
 
-function applyTicketTabFilter(query: any, tab: z.infer<typeof ticketTabSchema>) {
+function applyTicketTabFilter<T extends TicketTabFilterable>(query: T, tab: z.infer<typeof ticketTabSchema>) {
   switch (tab) {
     case "archived":
       return query.not("archived_at", "is", null);
@@ -67,7 +79,12 @@ function applyTicketTabFilter(query: any, tab: z.infer<typeof ticketTabSchema>) 
   }
 }
 
-function applyCursorFilter(query: any, column: string, order: "asc" | "desc", cursor: { sortValue: string | number; id: string }) {
+function applyCursorFilter<T extends OrFilterable>(
+  query: T,
+  column: string,
+  order: "asc" | "desc",
+  cursor: { sortValue: SortValue; id: string }
+) {
   const sortValue =
     typeof cursor.sortValue === "number" ? String(cursor.sortValue) : pgTextValue(String(cursor.sortValue));
   const idValue = cursor.id;
@@ -118,7 +135,7 @@ export async function GET(request: NextRequest) {
       .or(`name.ilike.${patternValue},email.ilike.${patternValue}`)
       .limit(50);
 
-    const customerIds = (matchedCustomers ?? []).map((c: any) => c.id).filter(Boolean);
+    const customerIds = ((matchedCustomers ?? []) as Array<{ id: string }>).map((c) => c.id).filter(Boolean);
 
     const orParts = [`subject.ilike.${patternValue}`, `content.ilike.${patternValue}`];
     if (customerIds.length > 0) {
@@ -134,8 +151,9 @@ export async function GET(request: NextRequest) {
     try {
       const cursor = decodeCursor(cursorRaw);
       query = applyCursorFilter(query, sortColumn, order, { sortValue: cursor.sortValue, id: cursor.id });
-    } catch (e: any) {
-      return apiError(400, "VALIDATION_ERROR", e?.message ?? "Invalid cursor.");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Invalid cursor.";
+      return apiError(400, "VALIDATION_ERROR", message);
     }
   }
 

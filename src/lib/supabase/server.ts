@@ -14,8 +14,14 @@ export async function createSupabaseServerClient() {
       },
       setAll(cookiesToSet) {
         try {
+          const store = cookieStore as unknown as {
+            set?: (name: string, value: string, options?: unknown) => void;
+          };
+
+          if (typeof store.set !== "function") return;
+
           for (const { name, value, options } of cookiesToSet) {
-            (cookieStore as any).set(name, value, options);
+            store.set(name, value, options);
           }
         } catch {
           // noop: calling setAll in Server Components can throw

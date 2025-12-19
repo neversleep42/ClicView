@@ -37,8 +37,9 @@ export default function LoginPage() {
 
             router.push(redirectedFrom || '/dashboard');
             router.refresh();
-        } catch (err: any) {
-            addToast('error', 'Auth Failed', err?.message ?? 'Could not authenticate.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Could not authenticate.';
+            addToast('error', 'Auth Failed', message);
         } finally {
             setIsSubmitting(false);
         }
@@ -131,4 +132,3 @@ export default function LoginPage() {
         </div>
     );
 }
-

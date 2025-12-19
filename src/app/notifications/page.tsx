@@ -122,8 +122,9 @@ export default function NotificationsPage() {
     const markAsRead = async (id: string) => {
         try {
             await markRead.mutateAsync(id);
-        } catch (err: any) {
-            addToast('error', 'Update Failed', err?.message ?? 'Could not mark notification read.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Could not mark notification read.';
+            addToast('error', 'Update Failed', message);
         }
     };
 
@@ -133,8 +134,9 @@ export default function NotificationsPage() {
         try {
             await Promise.all(unread.map((n) => markRead.mutateAsync(n.id)));
             addToast('success', 'All Read', 'All notifications marked as read.');
-        } catch (err: any) {
-            addToast('error', 'Update Failed', err?.message ?? 'Could not mark all as read.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Could not mark all as read.';
+            addToast('error', 'Update Failed', message);
         }
     };
 
@@ -282,4 +284,3 @@ export default function NotificationsPage() {
         </div>
     );
 }
-

@@ -46,20 +46,30 @@ export async function GET(request: NextRequest) {
 
   if (error) return apiError(500, "INTERNAL", "Failed to load analytics.", { cause: error.message });
 
-  const rows = tickets ?? [];
+  type AnalyticsTicketRow = {
+    id: string;
+    status: "open" | "resolved";
+    ai_status: "pending" | "draft_ready" | "human_needed" | null;
+    category: TicketCategory;
+    created_at: string;
+    updated_at: string;
+    archived_at: string | null;
+  };
+
+  const rows = (tickets ?? []) as AnalyticsTicketRow[];
 
   const totalTickets = rows.length;
-  const openTickets = rows.filter((t: any) => t.status === "open" && t.archived_at == null).length;
-  const resolvedTickets = rows.filter((t: any) => t.status === "resolved").length;
-  const humanNeededTickets = rows.filter((t: any) => t.ai_status === "human_needed" && t.archived_at == null).length;
+  const openTickets = rows.filter((t) => t.status === "open" && t.archived_at == null).length;
+  const resolvedTickets = rows.filter((t) => t.status === "resolved").length;
+  const humanNeededTickets = rows.filter((t) => t.ai_status === "human_needed" && t.archived_at == null).length;
 
-  const aiResolved = rows.filter((t: any) => t.status === "resolved" && t.ai_status != null).length;
+  const aiResolved = rows.filter((t) => t.status === "resolved" && t.ai_status != null).length;
   const humanResolved = Math.max(resolvedTickets - aiResolved, 0);
   const aiResolutionRate = resolvedTickets > 0 ? aiResolved / resolvedTickets : null;
 
   const resolvedDurations = rows
-    .filter((t: any) => t.status === "resolved" && t.created_at && t.updated_at)
-    .map((t: any) => {
+    .filter((t) => t.status === "resolved" && t.created_at && t.updated_at)
+    .map((t) => {
       const created = new Date(t.created_at).getTime();
       const updated = new Date(t.updated_at).getTime();
       return Math.max(0, Math.floor((updated - created) / 1000));
@@ -111,4 +121,3 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ analytics });
 }
-

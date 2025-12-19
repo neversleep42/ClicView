@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sidebar } from '@/components/Sidebar';
 import {
@@ -19,7 +19,7 @@ import { AddTemplateModal } from '@/components/AddTemplateModal';
 import { useToast } from '@/components/Toast';
 import { useAISettings, usePatchAISettings } from '@/hooks/useAISettings';
 import { useCreateTemplate, useTemplates } from '@/hooks/useTemplates';
-import type { AIPersona, CreateTemplateRequest } from '@/lib/api/contracts';
+import type { AIPersona, AISettingsDTO, CreateTemplateRequest, TemplateDTO } from '@/lib/api/contracts';
 
 type LocalAISettings = {
     aiEnabled: boolean;
@@ -30,6 +30,101 @@ type LocalAISettings = {
     toneValue: number;
     selectedPersona: AIPersona;
 };
+
+export default function AISettingsPage() {
+    const settingsQuery = useAISettings();
+    const patchSettings = usePatchAISettings();
+
+    const templatesQuery = useTemplates({ limit: 50, cursor: null, sort: 'updatedAt', order: 'desc' });
+    const createTemplate = useCreateTemplate();
+
+    if (settingsQuery.isLoading) {
+        return (
+            <div className="min-h-screen" style={{ background: 'var(--bg-secondary)' }}>
+                <Sidebar />
+                <main className="ml-[240px] p-6">
+                    <p style={{ color: 'var(--text-tertiary)' }}>Loading AI settings...</p>
+                </main>
+            </div>
+        );
+    }
+
+    if (settingsQuery.error || !settingsQuery.data?.settings) {
+        return (
+            <div className="min-h-screen" style={{ background: 'var(--bg-secondary)' }}>
+                <Sidebar />
+                <main className="ml-[240px] p-6">
+                    <p style={{ color: 'var(--status-pending)' }}>Failed to load AI settings.</p>
+                </main>
+            </div>
+        );
+    }
+
+    return (
+        <AISettingsScreen
+            key={settingsQuery.data.settings.updatedAt}
+            initialSettings={settingsQuery.data.settings}
+            templates={templatesQuery.data?.items ?? []}
+            templatesLoading={templatesQuery.isLoading}
+            onSaveSettings={async (next) => {
+                await patchSettings.mutateAsync(next);
+            }}
+            onCreateTemplate={async (tpl) => {
+                await createTemplate.mutateAsync(tpl);
+            }}
+        />
+    );
+}
+
+function AISettingsScreen({
+    initialSettings,
+    templates,
+    templatesLoading,
+    onSaveSettings,
+    onCreateTemplate,
+}: {
+    initialSettings: AISettingsDTO;
+    templates: TemplateDTO[];
+    templatesLoading: boolean;
+    onSaveSettings: (settings: LocalAISettings) => Promise<void>;
+    onCreateTemplate: (template: CreateTemplateRequest) => Promise<void>;
+}) {
+    const { addToast } = useToast();
+
+    const [settings, setSettings] = useState<LocalAISettings>(() => ({
+        aiEnabled: initialSettings.aiEnabled,
+        autoReply: initialSettings.autoReply,
+        learningMode: initialSettings.learningMode,
+        confidenceThreshold: initialSettings.confidenceThreshold,
+        maxResponseLength: initialSettings.maxResponseLength,
+        toneValue: initialSettings.toneValue,
+        selectedPersona: initialSettings.selectedPersona,
+    }));
+    const [saved, setSaved] = useState(false);
+    const [isAddTemplateOpen, setIsAddTemplateOpen] = useState(false);
+
+    const handleSave = async () => {
+        try {
+            await onSaveSettings(settings);
+            setSaved(true);
+            setTimeout(() => setSaved(false), 3000);
+            addToast('success', 'Settings Saved', 'Your AI configuration has been updated.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Could not save settings.';
+            addToast('error', 'Save Failed', message);
+        }
+    };
+
+    const handleAddTemplate = async (newTemplate: CreateTemplateRequest) => {
+        try {
+            await onCreateTemplate(newTemplate);
+            addToast('success', 'Template Created', `New template "${newTemplate.title}" added.`);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Could not create template.';
+            addToast('error', 'Create Failed', message);
+            throw err;
+        }
+    };
 
 // Toggle Component
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (val: boolean) => void }) {
@@ -149,62 +244,6 @@ function TemplateCard({ title, category, preview }: { title: string; category: s
         </div>
     );
 }
-
-export default function AISettingsPage() {
-    const { addToast } = useToast();
-    const settingsQuery = useAISettings();
-    const patchSettings = usePatchAISettings();
-
-    const templatesQuery = useTemplates({ limit: 50, cursor: null, sort: 'updatedAt', order: 'desc' });
-    const createTemplate = useCreateTemplate();
-    const templates = templatesQuery.data?.items ?? [];
-
-    const [settings, setSettings] = useState<LocalAISettings>({
-        aiEnabled: true,
-        autoReply: true,
-        learningMode: true,
-        confidenceThreshold: 75,
-        maxResponseLength: 300,
-        toneValue: 50,
-        selectedPersona: 'professional',
-    });
-    const [saved, setSaved] = useState(false);
-    const [isAddTemplateOpen, setIsAddTemplateOpen] = useState(false);
-
-    useEffect(() => {
-        const remote = settingsQuery.data?.settings;
-        if (!remote) return;
-        setSettings({
-            aiEnabled: remote.aiEnabled,
-            autoReply: remote.autoReply,
-            learningMode: remote.learningMode,
-            confidenceThreshold: remote.confidenceThreshold,
-            maxResponseLength: remote.maxResponseLength,
-            toneValue: remote.toneValue,
-            selectedPersona: remote.selectedPersona,
-        });
-    }, [settingsQuery.data?.settings]);
-
-    const handleSave = async () => {
-        try {
-            await patchSettings.mutateAsync(settings);
-            setSaved(true);
-            setTimeout(() => setSaved(false), 3000);
-            addToast('success', 'Settings Saved', 'Your AI configuration has been updated.');
-        } catch (err: any) {
-            addToast('error', 'Save Failed', err?.message ?? 'Could not save settings.');
-        }
-    };
-
-    const handleAddTemplate = async (newTemplate: CreateTemplateRequest) => {
-        try {
-            await createTemplate.mutateAsync(newTemplate);
-            addToast('success', 'Template Created', `New template "${newTemplate.title}" added.`);
-        } catch (err: any) {
-            addToast('error', 'Create Failed', err?.message ?? 'Could not create template.');
-            throw err;
-        }
-    };
 
     const personas: Array<{ id: AIPersona; name: string; description: string; icon: React.ReactNode }> = [
         { id: 'professional', name: 'Professional', description: 'Formal and courteous business tone', icon: <Shield className="w-5 h-5" /> },
@@ -424,12 +463,12 @@ export default function AISettingsPage() {
                                 <button className="text-sm font-medium" style={{ color: 'var(--accent-green-dark)' }}>View All</button>
                             </div>
                             <div className="space-y-3">
-                                {templatesQuery.isLoading && (
+                                {templatesLoading && (
                                     <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
                                         Loading templates...
                                     </p>
                                 )}
-                                {!templatesQuery.isLoading && templates.length === 0 && (
+                                {!templatesLoading && templates.length === 0 && (
                                     <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
                                         No templates yet.
                                     </p>

@@ -1,5 +1,88 @@
 import type { AISettingsDTO, CustomerDTO, NotificationDTO, TicketDTO, TemplateDTO, TicketMessageDTO } from "./contracts";
 
+type CustomerRefRow = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+type TicketRow = {
+  id: string;
+  ticket_number: string;
+  subject: string;
+  excerpt: string;
+  content: string;
+  category: TicketDTO["category"];
+  priority: TicketDTO["priority"];
+  status: TicketDTO["status"];
+  ai_status: TicketDTO["aiStatus"];
+  latest_run_id: string | null;
+  confidence: number | string | null;
+  sentiment: number | string | null;
+  draft_response: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  customer?: CustomerRefRow | null;
+};
+
+type CustomerRow = {
+  id: string;
+  name: string;
+  email: string;
+  orders: number;
+  ltv: number | string | null;
+  last_ticket_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type TemplateRow = {
+  id: string;
+  org_id: string;
+  title: string;
+  category: string;
+  content: string;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type NotificationRow = {
+  id: string;
+  org_id: string;
+  type: NotificationDTO["type"];
+  priority: NotificationDTO["priority"];
+  title: string;
+  message: string;
+  ticket_id: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+type TicketMessageRow = {
+  id: string;
+  ticket_id: string;
+  author_type: TicketMessageDTO["authorType"];
+  author_name: string | null;
+  content: string;
+  created_at: string;
+};
+
+type AISettingsRow = {
+  id: string;
+  org_id: string;
+  ai_enabled: boolean;
+  auto_reply: boolean;
+  learning_mode: boolean;
+  confidence_threshold: number;
+  max_response_length: number;
+  tone_value: number;
+  selected_persona: AISettingsDTO["selectedPersona"];
+  created_at: string;
+  updated_at: string;
+};
+
 export const TICKET_SELECT = `
   id,
   ticket_number,
@@ -24,7 +107,7 @@ export const TICKET_SELECT = `
   )
 `;
 
-export function mapTicketRow(row: any): TicketDTO {
+export function mapTicketRow(row: TicketRow): TicketDTO {
   return {
     id: row.id,
     ticketNumber: row.ticket_number,
@@ -61,7 +144,7 @@ export const CUSTOMER_SELECT = `
   updated_at
 `;
 
-export function mapCustomerRow(row: any): CustomerDTO {
+export function mapCustomerRow(row: CustomerRow): CustomerDTO {
   return {
     id: row.id,
     name: row.name,
@@ -85,7 +168,7 @@ export const TEMPLATE_SELECT = `
   updated_at
 `;
 
-export function mapTemplateRow(row: any): TemplateDTO {
+export function mapTemplateRow(row: TemplateRow): TemplateDTO {
   return {
     id: row.id,
     orgId: row.org_id,
@@ -110,7 +193,7 @@ export const NOTIFICATION_SELECT = `
   created_at
 `;
 
-export function mapNotificationRow(row: any): NotificationDTO {
+export function mapNotificationRow(row: NotificationRow): NotificationDTO {
   return {
     id: row.id,
     orgId: row.org_id,
@@ -133,7 +216,7 @@ export const TICKET_MESSAGE_SELECT = `
   created_at
 `;
 
-export function mapTicketMessageRow(row: any): TicketMessageDTO {
+export function mapTicketMessageRow(row: TicketMessageRow): TicketMessageDTO {
   return {
     id: row.id,
     ticketId: row.ticket_id,
@@ -158,7 +241,7 @@ export const AI_SETTINGS_SELECT = `
   updated_at
 `;
 
-export function mapAISettingsRow(row: any): AISettingsDTO {
+export function mapAISettingsRow(row: AISettingsRow): AISettingsDTO {
   return {
     id: row.id,
     orgId: row.org_id,

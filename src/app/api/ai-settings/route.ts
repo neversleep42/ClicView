@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { apiError } from "@/lib/api/http";
 import { AI_SETTINGS_SELECT, mapAISettingsRow } from "@/lib/api/mappers";
-import { requireUserAndOrg } from "@/lib/supabase/requireUserAndOrg";
+import { requireUserAndOrg, type SupabaseServerClient } from "@/lib/supabase/requireUserAndOrg";
 
 export const runtime = "nodejs";
 
@@ -21,7 +21,7 @@ const patchSettingsSchema = z
   })
   .refine((v) => Object.keys(v).length > 0, { message: "No fields to update." });
 
-async function getOrCreateSettings(supabase: any, orgId: string) {
+async function getOrCreateSettings(supabase: SupabaseServerClient, orgId: string) {
   const { data: existing, error } = await supabase
     .from("ai_settings")
     .select(AI_SETTINGS_SELECT)
@@ -50,8 +50,9 @@ export async function GET(_request: NextRequest) {
   try {
     const settingsRow = await getOrCreateSettings(supabase, orgId);
     return NextResponse.json({ settings: mapAISettingsRow(settingsRow) });
-  } catch (e: any) {
-    return apiError(500, "INTERNAL", "Failed to load AI settings.", { cause: e?.message });
+  } catch (e: unknown) {
+    const cause = e instanceof Error ? e.message : "Unknown error";
+    return apiError(500, "INTERNAL", "Failed to load AI settings.", { cause });
   }
 }
 
@@ -92,8 +93,8 @@ export async function PATCH(request: NextRequest) {
   try {
     const settingsRow = await getOrCreateSettings(supabase, orgId);
     return NextResponse.json({ settings: mapAISettingsRow(settingsRow) });
-  } catch (e: any) {
-    return apiError(500, "INTERNAL", "Failed to load AI settings.", { cause: e?.message });
+  } catch (e: unknown) {
+    const cause = e instanceof Error ? e.message : "Unknown error";
+    return apiError(500, "INTERNAL", "Failed to load AI settings.", { cause });
   }
 }
-

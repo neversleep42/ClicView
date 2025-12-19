@@ -13,6 +13,15 @@ const geminiOutputSchema = z.object({
   draftResponse: z.string().min(1).max(20_000),
 });
 
+type GeminiGenerateContentResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
+  }>;
+  error?: { message?: string };
+};
+
 function json(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
     ...init,
@@ -98,13 +107,19 @@ async function runGemini(opts: {
       }),
     });
 
-    const payload = await res.json().catch(() => null);
+    const payloadUnknown = await res.json().catch(() => null);
+    const payload = payloadUnknown as GeminiGenerateContentResponse | null;
     if (!res.ok) {
       const message = typeof payload?.error?.message === "string" ? payload.error.message : `Gemini request failed (${res.status}).`;
       throw new Error(message);
     }
 
-    const text = payload?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join("\n") ?? "";
+    const parts = payload?.candidates?.[0]?.content?.parts ?? [];
+    const text =
+      parts
+        .map((part) => part.text)
+        .filter((value): value is string => typeof value === "string" && value.length > 0)
+        .join("\n") ?? "";
     const parsed = extractJsonObject(String(text));
     const validated = geminiOutputSchema.parse(parsed);
     return validated;

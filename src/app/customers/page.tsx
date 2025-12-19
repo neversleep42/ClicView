@@ -58,8 +58,9 @@ function CustomerDrawer({
             await onUpdate(customer.id, patch);
             setIsEditing(false);
             addToast('success', 'Customer Updated', `${formData.name || customer.name}'s profile has been updated.`);
-        } catch (err: any) {
-            addToast('error', 'Update Failed', err?.message ?? 'Could not update customer.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Could not update customer.';
+            addToast('error', 'Update Failed', message);
         }
     };
 
@@ -69,8 +70,9 @@ function CustomerDrawer({
                 await onDelete(customer.id);
                 onClose();
                 addToast('info', 'Customer Deleted', `${customer.name} has been removed.`);
-            } catch (err: any) {
-                addToast('error', 'Delete Failed', err?.message ?? 'Could not delete customer.');
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : 'Could not delete customer.';
+                addToast('error', 'Delete Failed', message);
             }
         }
     };
@@ -287,11 +289,12 @@ export default function CustomersPage() {
             const { customer } = await createCustomer.mutateAsync(newCustomer);
             addToast('success', 'Customer Added', `${customer.name} has been added to the database.`);
             setIsAddModalOpen(false);
-        } catch (err: any) {
+        } catch (err: unknown) {
             if (isApiClientError(err) && err.code === 'CUSTOMER_EMAIL_EXISTS') {
                 addToast('warning', 'Customer Exists', 'Customer email already exists in this workspace.');
             } else {
-                addToast('error', 'Create Failed', err?.message ?? 'Could not create customer.');
+                const message = err instanceof Error ? err.message : 'Could not create customer.';
+                addToast('error', 'Create Failed', message);
             }
             throw err;
         }

@@ -17,7 +17,12 @@ const createMessageSchema = z.object({
   content: z.string().min(1).max(20_000),
 });
 
-function applyCursorFilter(query: any, order: "asc" | "desc", cursor: { sortValue: string | number; id: string }) {
+type SortValue = string | number;
+interface OrFilterable {
+  or(filters: string): this;
+}
+
+function applyCursorFilter<T extends OrFilterable>(query: T, order: "asc" | "desc", cursor: { sortValue: SortValue; id: string }) {
   const sortValue =
     typeof cursor.sortValue === "number" ? String(cursor.sortValue) : pgTextValue(String(cursor.sortValue));
   const idValue = cursor.id;
@@ -65,8 +70,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     try {
       const cursor = decodeCursor(cursorRaw);
       query = applyCursorFilter(query, order, { sortValue: cursor.sortValue, id: cursor.id });
-    } catch (e: any) {
-      return apiError(400, "VALIDATION_ERROR", e?.message ?? "Invalid cursor.");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Invalid cursor.";
+      return apiError(400, "VALIDATION_ERROR", message);
     }
   }
 
@@ -135,4 +141,3 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
 
   return NextResponse.json({ message: mapTicketMessageRow(messageRow) });
 }
-

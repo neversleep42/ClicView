@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, LineChart, PieChart, TrendingDown, TrendingUp } from 'lucide-react';
+import { BarChart3, LineChart, PieChart, TrendingUp } from 'lucide-react';
 
 import { Sidebar } from '@/components/Sidebar';
 import { useAnalytics } from '@/hooks/useAnalytics';
@@ -335,4 +335,3 @@ export default function AnalyticsPage() {
         </div>
     );
 }
-
