@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+﻿# SupportAI (ClicView)
 
-## Getting Started
+SupportAI is an AI-assisted customer support workspace built with Next.js and Supabase. It manages tickets, customers, AI drafts, templates, notifications, and analytics with realtime updates.
 
-First, run the development server:
+## Docs
+
+- Product overview (features + AI behavior): `docs/product_overview.md`
+
+## Tech stack
+
+- Next.js (App Router)
+- Supabase (Postgres, Auth, Realtime, Edge Functions)
+- React Query for data fetching
+- Tailwind CSS
+
+## Key features
+
+- Ticket inbox with filters, search, cursor pagination, and soft-archive
+- Message thread per ticket (customer + agent) and reply workflow
+- AI draft pipeline with safety rules and optional auto-reply
+- Customers CRUD and templates management
+- Notifications and analytics dashboards
+- Auth gating via Supabase
+
+## Local setup
+
+1) Install dependencies:
+
+```bash
+npm install
+```
+
+2) Create `.env.local` with the following keys:
+
+```bash
+# Supabase (required)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+
+# Server-only (required for Edge Function / admin tasks)
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Gemini (optional, enables real AI output)
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+3) Run Supabase (local) or connect to a hosted project.
+
+### Local Supabase
+
+```bash
+supabase start
+supabase db reset
+```
+
+This applies migrations under `supabase/migrations` and seeds demo data.
+
+### Hosted Supabase
+
+```bash
+supabase db push
+supabase functions deploy ai-worker
+supabase secrets set \
+  SUPABASE_URL=... \
+  SUPABASE_ANON_KEY=... \
+  SUPABASE_SERVICE_ROLE_KEY=... \
+  GEMINI_API_KEY=... \
+  GEMINI_MODEL=gemini-2.5-flash
+```
+
+## Run the app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm run start
+```
 
-## Learn More
+## Notes
 
-To learn more about Next.js, take a look at the following resources:
+- The UI is protected by Supabase auth and will redirect to `/login` if unauthenticated.
+- Realtime subscriptions are enabled for tickets, ai_runs, ticket_messages, and notifications.
+- If AI is disabled in settings, runs are not enqueued and aiStatus stays null.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Repo structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/app` - Next.js pages and API routes
+- `src/components` - UI components
+- `src/hooks` - React Query hooks
+- `src/lib` - API client, contracts, Supabase helpers
+- `supabase/migrations` - DB schema + RLS + seed logic
+- `supabase/functions/ai-worker` - AI worker (Gemini + fallback)
