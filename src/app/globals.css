@@ -171,6 +171,90 @@ body {
   animation: fadeIn 0.3s ease-out forwards;
 }
 
+/* ===== LANDING PAGE ANIMATIONS ===== */
+
+/* Marquee scroll animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 25s linear infinite;
+}
+
+/* Floating animations */
+@keyframes float-1 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(10px, -10px) rotate(5deg);
+  }
+}
+
+@keyframes float-2 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-15px, 10px) rotate(-5deg);
+  }
+}
+
+@keyframes float-3 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(15px, 15px) rotate(5deg);
+  }
+}
+
+.animate-float-1 {
+  animation: float-1 8s ease-in-out infinite;
+}
+
+.animate-float-2 {
+  animation: float-2 9s ease-in-out infinite;
+}
+
+.animate-float-3 {
+  animation: float-3 10s ease-in-out infinite;
+}
+
+/* Flicker for status badge */
+@keyframes flicker {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-flicker {
+  animation: flicker 2s ease-in-out infinite;
+}
+
+/* Scroll animation for video carousel */
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.animate-scroll {
+  animation: scroll 30s linear infinite;
+}
+
 /* ===== COMPONENT STYLES ===== */
 
 /* Sidebar */
