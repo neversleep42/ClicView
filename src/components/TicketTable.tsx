@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Archive, ChevronLeft, ChevronRight, Mail, MoreHorizontal, Search, Sparkles } from 'lucide-react';
 
@@ -99,11 +99,6 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
     const archiveTicket = useArchiveTicket();
     const createTicket = useCreateTicket();
 
-    useEffect(() => {
-        setCursor(null);
-        setCursorStack([]);
-    }, [activeTab, debouncedSearch]);
-
     const handleRowClick = (ticket: TicketDTO) => {
         setSelectedTicket(ticket);
         setIsPanelOpen(true);
@@ -130,8 +125,9 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                 onCountChange?.(Math.max(0, tickets.length - 1));
                 if (selectedTicket?.id === ticket.id) handleClosePanel();
             },
-            onError: (err: any) => {
-                addToast('error', 'Archive Failed', err?.message ?? 'Could not archive ticket.');
+            onError: (err: unknown) => {
+                const message = err instanceof Error ? err.message : 'Could not archive ticket.';
+                addToast('error', 'Archive Failed', message);
             },
         });
     };
@@ -145,8 +141,9 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                 runId ? `AI run queued for ticket ${ticket.ticketNumber}.` : `Ticket ${ticket.ticketNumber} created.`
             );
             setIsNewTicketModalOpen(false);
-        } catch (err: any) {
-            addToast('error', 'Create Failed', err?.message ?? 'Could not create ticket.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Could not create ticket.';
+            addToast('error', 'Create Failed', message);
             throw err;
         }
     };
@@ -162,7 +159,11 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                             type="text"
                             placeholder="Search tickets..."
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setCursor(null);
+                                setCursorStack([]);
+                            }}
                         />
                     </div>
 
@@ -182,7 +183,11 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
                         {tabs.map((tab) => (
                             <motion.button
                                 key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
+                                onClick={() => {
+                                    setActiveTab(tab.id);
+                                    setCursor(null);
+                                    setCursorStack([]);
+                                }}
                                 className={`tab-item flex items-center gap-2 ${activeTab === tab.id ? 'active' : ''}`}
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
@@ -405,6 +410,7 @@ export function TicketTable({ onCountChange }: TicketTableProps) {
 
             {/* Detail Panel */}
             <TicketDetailPanel
+                key={selectedTicket?.id ?? 'empty'}
                 ticket={selectedTicket}
                 isOpen={isPanelOpen}
                 onClose={handleClosePanel}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Archive, Clock, Loader2, RefreshCcw, Send, Sparkles, ThumbsDown, ThumbsUp, User, X } from 'lucide-react';
 
@@ -25,11 +25,7 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onTicketUpdated }: 
     const archiveTicket = useArchiveTicket();
     const triggerRun = useTriggerAIRun();
 
-    const [draftContent, setDraftContent] = useState('');
-
-    useEffect(() => {
-        setDraftContent(ticket?.draftResponse ?? '');
-    }, [ticket?.id, ticket?.draftResponse]);
+    const [draftContent, setDraftContent] = useState(() => ticket?.draftResponse ?? '');
 
     if (!ticket) return null;
 
@@ -59,8 +55,9 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onTicketUpdated }: 
             onTicketUpdated?.(res.ticket);
             addToast('success', 'Ticket Resolved', `Reply saved and ticket ${ticket.ticketNumber} marked as resolved.`);
             onClose();
-        } catch (err: any) {
-            addToast('error', 'Send Failed', err?.message ?? 'Could not resolve ticket.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Could not resolve ticket.';
+            addToast('error', 'Send Failed', message);
         }
     };
 
@@ -70,8 +67,9 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onTicketUpdated }: 
             onTicketUpdated?.(res.ticket);
             addToast('info', 'Ticket Archived', `Ticket ${ticket.ticketNumber} moved to archive.`);
             onClose();
-        } catch (err: any) {
-            addToast('error', 'Archive Failed', err?.message ?? 'Could not archive ticket.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Could not archive ticket.';
+            addToast('error', 'Archive Failed', message);
         }
     };
 
@@ -80,8 +78,9 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onTicketUpdated }: 
             const res = await triggerRun.mutateAsync({ id: ticket.id, force: true });
             onTicketUpdated?.(res.ticket);
             addToast('info', 'AI Run Started', 'Regenerating draft in the background.');
-        } catch (err: any) {
-            addToast('error', 'AI Run Failed', err?.message ?? 'Could not start AI run.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Could not start AI run.';
+            addToast('error', 'AI Run Failed', message);
         }
     };
 
@@ -172,9 +171,10 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onTicketUpdated }: 
                                     value={draftContent}
                                     onChange={(e) => setDraftContent(e.target.value)}
                                     onBlur={() => {
-                                        void saveDraftIfDirty().catch((err: any) =>
-                                            addToast('error', 'Save Failed', err?.message ?? 'Could not save draft.')
-                                        );
+                                        void saveDraftIfDirty().catch((err: unknown) => {
+                                            const message = err instanceof Error ? err.message : 'Could not save draft.';
+                                            addToast('error', 'Save Failed', message);
+                                        });
                                     }}
                                     className="w-full p-4 rounded-xl text-sm leading-relaxed resize-none min-h-[200px] outline-none focus:ring-2 focus:ring-primary/20 transition-all bg-secondary/30"
                                     style={{ color: 'var(--text-primary)' }}
@@ -220,4 +220,3 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onTicketUpdated }: 
         </AnimatePresence>
     );
 }
-

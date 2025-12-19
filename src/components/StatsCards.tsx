@@ -1,14 +1,14 @@
 'use client';
 
 import { Info, TrendingUp, TrendingDown } from 'lucide-react';
-import { dashboardStats } from '@/lib/data';
+import { useAnalytics } from '@/hooks/useAnalytics';
 
 interface StatCardProps {
     title: string;
     value: string | number;
-    trend: string;
-    trendDirection: 'up' | 'down';
-    trendLabel: string;
+    trend?: string;
+    trendDirection?: 'up' | 'down';
+    trendLabel?: string;
 }
 
 function StatCard({ title, value, trend, trendDirection, trendLabel }: StatCardProps) {
@@ -31,49 +31,46 @@ function StatCard({ title, value, trend, trendDirection, trendLabel }: StatCardP
                     {value}
                 </span>
 
-                <div className={`trend ${isPositive ? 'trend-up' : 'trend-down'}`}>
-                    {isPositive ? (
-                        <TrendingUp className="w-4 h-4" />
-                    ) : (
-                        <TrendingDown className="w-4 h-4" />
-                    )}
-                    <span>{trend}</span>
-                    <span style={{ color: 'var(--text-tertiary)' }}>{trendLabel}</span>
-                </div>
+                {trend && trendDirection && trendLabel && (
+                    <div className={`trend ${isPositive ? 'trend-up' : 'trend-down'}`}>
+                        {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                        <span>{trend}</span>
+                        <span style={{ color: 'var(--text-tertiary)' }}>{trendLabel}</span>
+                    </div>
+                )}
             </div>
         </div>
     );
 }
 
 export function StatsCards() {
+    const analyticsQuery = useAnalytics('7d');
+    const analytics = analyticsQuery.data?.analytics;
+
+    const formatDuration = (seconds: number | null | undefined) => {
+        if (seconds == null) return '—';
+        const s = Math.max(0, Math.floor(seconds));
+        const mins = Math.floor(s / 60);
+        const secs = s % 60;
+        return `${mins}m ${secs}s`;
+    };
+
     const stats = [
         {
             title: 'Pending Tickets',
-            value: dashboardStats.pendingTickets.value,
-            trend: dashboardStats.pendingTickets.trend,
-            trendDirection: dashboardStats.pendingTickets.trendDirection,
-            trendLabel: dashboardStats.pendingTickets.label,
+            value: analytics ? analytics.summary.openTickets : '—',
         },
         {
-            title: 'Avg Response Time',
-            value: dashboardStats.avgResponseTime.value,
-            trend: dashboardStats.avgResponseTime.trend,
-            trendDirection: dashboardStats.avgResponseTime.trendDirection,
-            trendLabel: dashboardStats.avgResponseTime.label,
+            title: 'Avg Handle Time',
+            value: analytics ? formatDuration(analytics.summary.avgHandleTimeSeconds) : '—',
         },
         {
             title: 'AI Resolution Rate',
-            value: dashboardStats.aiResolutionRate.value,
-            trend: dashboardStats.aiResolutionRate.trend,
-            trendDirection: dashboardStats.aiResolutionRate.trendDirection,
-            trendLabel: dashboardStats.aiResolutionRate.label,
+            value: analytics?.summary.aiResolutionRate == null ? '—' : `${Math.round(analytics.summary.aiResolutionRate * 100)}%`,
         },
         {
             title: 'Customer Satisfaction',
-            value: dashboardStats.customerSatisfaction.value,
-            trend: dashboardStats.customerSatisfaction.trend,
-            trendDirection: dashboardStats.customerSatisfaction.trendDirection,
-            trendLabel: dashboardStats.customerSatisfaction.label,
+            value: analytics?.summary.csatScore == null ? '—' : analytics.summary.csatScore.toFixed(1),
         },
     ];
 

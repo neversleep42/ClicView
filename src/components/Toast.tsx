@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useRef, useState, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, AlertCircle, Info } from 'lucide-react';
 
@@ -23,9 +23,11 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
     const [toasts, setToasts] = useState<Toast[]>([]);
+    const nextId = useRef(0);
 
     const addToast = (type: ToastType, title: string, message?: string) => {
-        const id = Date.now().toString();
+        nextId.current += 1;
+        const id = String(nextId.current);
         setToasts(prev => [...prev, { id, type, title, message }]);
 
         // Auto-remove after 4 seconds

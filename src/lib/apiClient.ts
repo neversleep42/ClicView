@@ -23,7 +23,7 @@ export class ApiClientError extends Error {
 }
 
 export function isApiClientError(error: unknown): error is ApiClientError {
-    return typeof error === 'object' && error !== null && (error as any).name === 'ApiClientError';
+    return error instanceof ApiClientError;
 }
 
 function buildQueryString(params?: Record<string, unknown>) {
@@ -106,4 +106,3 @@ export function apiPatch<T>(path: string, body?: unknown, signal?: AbortSignal) 
 export function apiDelete<T>(path: string, signal?: AbortSignal) {
     return request<T>('DELETE', path, undefined, signal);
 }
-
