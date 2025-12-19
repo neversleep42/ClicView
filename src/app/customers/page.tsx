@@ -211,16 +211,14 @@ function CustomerDrawer({
                                 Recent Activity
                             </h4>
                             <div className="space-y-3">
-                                {[
-                                    { action: 'Submitted ticket #61391', date: '2 days ago', type: 'ticket' },
-                                    { action: 'Order #45230 delivered', date: '5 days ago', type: 'order' },
-                                    { action: 'Left 5-star review', date: '1 week ago', type: 'review' },
-                                ].map((activity, i) => (
-                                    <div key={i} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--bg-secondary)' }}>
-                                        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{activity.action}</span>
-                                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{activity.date}</span>
-                                    </div>
-                                ))}
+                                <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--bg-secondary)' }}>
+                                    <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                                        Last ticket
+                                    </span>
+                                    <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                                        {formatLastTicket(customer.lastTicketAt)}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     )}

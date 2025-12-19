@@ -42,3 +42,7 @@ export function useCreateTicketMessage() {
         },
     });
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> feat/backend-integration

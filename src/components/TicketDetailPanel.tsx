@@ -191,7 +191,10 @@ export function TicketDetailPanel({ ticket, isOpen, onClose, onTicketUpdated }: 
                             <h2 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
                                 Ticket {displayTicket.ticketNumber}
                             </h2>
-                            <button onClick={onClose} className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                            <button
+                                onClick={onClose}
+                                className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            >
                                 <X size={20} />
                             </button>
                         </div>

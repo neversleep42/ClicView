@@ -1,60 +1,57 @@
 'use client';
 
-<<<<<<< HEAD
-import { Suspense, useState } from 'react';
-=======
-import { useState, Suspense } from 'react';
->>>>>>> feat/backend-integration
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Bot, Loader2, LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Bot, Loader2, UserPlus, Mail, Lock, Eye, EyeOff, User } from 'lucide-react';
 
 import { useToast } from '@/components/Toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
-<<<<<<< HEAD
-export default function LoginPage() {
-    return (
-        <Suspense>
-            <LoginPageInner />
-        </Suspense>
-    );
-}
-
-function LoginPageInner() {
-=======
-function LoginPageContent() {
->>>>>>> feat/backend-integration
+export default function SignUpPage() {
     const { addToast } = useToast();
     const router = useRouter();
-    const searchParams = useSearchParams();
-    const redirectedFrom = searchParams.get('redirectedFrom');
 
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (password.length < 8) {
+            addToast('error', 'Password Too Short', 'Must be at least 8 characters.');
+            return;
+        }
         setIsSubmitting(true);
         try {
             const supabase = createSupabaseBrowserClient();
-            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            const { error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        first_name: firstName,
+                        last_name: lastName,
+                        full_name: `${firstName} ${lastName}`.trim(),
+                    },
+                },
+            });
             if (error) throw error;
-            addToast('success', 'Welcome Back', 'Successfully signed in.');
-            router.push(redirectedFrom || '/dashboard');
-            router.refresh();
+            addToast('success', 'Account Created', 'Check your email to confirm your account.');
+            router.push('/login');
         } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : 'Could not authenticate.';
-            addToast('error', 'Sign In Failed', message);
+            const message = err instanceof Error ? err.message : 'Could not create account.';
+            addToast('error', 'Sign Up Failed', message);
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleOAuthLogin = async (provider: 'google' | 'github') => {
+    const handleOAuthSignUp = async (provider: 'google' | 'github') => {
         try {
             const supabase = createSupabaseBrowserClient();
             const { error } = await supabase.auth.signInWithOAuth({
@@ -71,9 +68,9 @@ function LoginPageContent() {
     };
 
     const steps = [
-        { number: 1, label: 'Sign in to your account', active: true },
-        { number: 2, label: 'Access your dashboard', active: false },
-        { number: 3, label: 'Manage your support', active: false },
+        { number: 1, label: 'Sign up your account', active: true },
+        { number: 2, label: 'Set up your workspace', active: false },
+        { number: 3, label: 'Set up your profile', active: false },
     ];
 
     return (
@@ -103,10 +100,10 @@ function LoginPageContent() {
 
                     {/* Title */}
                     <h1 className="text-4xl font-medium text-white mb-4">
-                        Welcome Back
+                        Get Started with Us
                     </h1>
                     <p className="text-[#888] text-lg mb-12">
-                        Sign in to continue managing your AI-powered customer support.
+                        Complete these easy steps to register your account.
                     </p>
 
                     {/* Steps */}
@@ -118,13 +115,13 @@ function LoginPageContent() {
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: step.number * 0.1 }}
                                 className={`flex items-center gap-4 px-5 py-4 rounded-xl border transition-all ${step.active
-                                    ? 'bg-white/5 border-white/20'
-                                    : 'bg-transparent border-white/10'
+                                        ? 'bg-white/5 border-white/20'
+                                        : 'bg-transparent border-white/10'
                                     }`}
                             >
                                 <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium ${step.active
-                                    ? 'bg-[var(--accent-green)] text-white'
-                                    : 'bg-white/10 text-[#666]'
+                                        ? 'bg-[var(--accent-green)] text-white'
+                                        : 'bg-white/10 text-[#666]'
                                     }`}>
                                     {step.number}
                                 </span>
@@ -154,15 +151,15 @@ function LoginPageContent() {
 
                     {/* Header */}
                     <div className="text-center mb-8">
-                        <h2 className="text-2xl font-semibold text-white mb-2">Sign In</h2>
-                        <p className="text-[#888]">Enter your credentials to access your account.</p>
+                        <h2 className="text-2xl font-semibold text-white mb-2">Sign Up Account</h2>
+                        <p className="text-[#888]">Enter your personal data to create your account.</p>
                     </div>
 
                     {/* OAuth Buttons */}
                     <div className="grid grid-cols-2 gap-4 mb-6">
                         <button
                             type="button"
-                            onClick={() => handleOAuthLogin('google')}
+                            onClick={() => handleOAuthSignUp('google')}
                             className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#1a1a1a] border border-white/10 text-white hover:bg-[#222] transition-colors"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -175,7 +172,7 @@ function LoginPageContent() {
                         </button>
                         <button
                             type="button"
-                            onClick={() => handleOAuthLogin('github')}
+                            onClick={() => handleOAuthSignUp('github')}
                             className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#1a1a1a] border border-white/10 text-white hover:bg-[#222] transition-colors"
                         >
                             <svg className="w-5 h-5" fill="white" viewBox="0 0 24 24">
@@ -196,7 +193,38 @@ function LoginPageContent() {
                     </div>
 
                     {/* Form */}
-                    <form onSubmit={handleLogin} className="space-y-5">
+                    <form onSubmit={handleSignUp} className="space-y-5">
+                        {/* Name Fields */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-[#888] mb-2">
+                                    First Name
+                                </label>
+                                <div className="relative">
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#666]" />
+                                    <input
+                                        type="text"
+                                        value={firstName}
+                                        onChange={(e) => setFirstName(e.target.value)}
+                                        className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#1a1a1a] border border-white/10 text-white placeholder-[#666] outline-none focus:border-[var(--accent-green)] transition-colors"
+                                        placeholder="eg. John"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[#888] mb-2">
+                                    Last Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={lastName}
+                                    onChange={(e) => setLastName(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-xl bg-[#1a1a1a] border border-white/10 text-white placeholder-[#666] outline-none focus:border-[var(--accent-green)] transition-colors"
+                                    placeholder="eg. Francisco"
+                                />
+                            </div>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-[#888] mb-2">
                                 Email
@@ -209,7 +237,7 @@ function LoginPageContent() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#1a1a1a] border border-white/10 text-white placeholder-[#666] outline-none focus:border-[var(--accent-green)] transition-colors"
-                                    placeholder="eg. john@company.com"
+                                    placeholder="eg. johnfrans@gmail.com"
                                     autoComplete="email"
                                 />
                             </div>
@@ -228,7 +256,7 @@ function LoginPageContent() {
                                     onChange={(e) => setPassword(e.target.value)}
                                     className="w-full pl-12 pr-12 py-3 rounded-xl bg-[#1a1a1a] border border-white/10 text-white placeholder-[#666] outline-none focus:border-[var(--accent-green)] transition-colors"
                                     placeholder="Enter your password"
-                                    autoComplete="current-password"
+                                    autoComplete="new-password"
                                 />
                                 <button
                                     type="button"
@@ -238,16 +266,7 @@ function LoginPageContent() {
                                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                 </button>
                             </div>
-                        </div>
-
-                        {/* Forgot Password */}
-                        <div className="flex justify-end">
-                            <Link
-                                href="/reset-password"
-                                className="text-sm text-[var(--accent-green)] hover:underline"
-                            >
-                                Forgot password?
-                            </Link>
+                            <p className="text-xs text-[#666] mt-2">Must be at least 8 characters.</p>
                         </div>
 
                         {/* Submit Button */}
@@ -259,29 +278,21 @@ function LoginPageContent() {
                             {isSubmitting ? (
                                 <Loader2 className="w-5 h-5 animate-spin" />
                             ) : (
-                                <LogIn className="w-5 h-5" />
+                                <UserPlus className="w-5 h-5" />
                             )}
-                            {isSubmitting ? 'Signing in...' : 'Sign In'}
+                            {isSubmitting ? 'Creating account...' : 'Sign Up'}
                         </button>
                     </form>
 
-                    {/* Sign Up Link */}
+                    {/* Login Link */}
                     <p className="text-center mt-6 text-[#888]">
-                        Don't have an account?{' '}
-                        <Link href="/signup" className="text-white font-medium hover:underline">
-                            Sign Up
+                        Already have an account?{' '}
+                        <Link href="/login" className="text-white font-medium hover:underline">
+                            Log In
                         </Link>
                     </p>
                 </motion.div>
             </div>
         </div>
-    );
-}
-
-export default function LoginPage() {
-    return (
-        <Suspense fallback={<div className="min-h-screen bg-[#0a0a0a]" />}>
-            <LoginPageContent />
-        </Suspense>
     );
 }
