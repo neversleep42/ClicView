@@ -18,6 +18,18 @@ export type TicketsListParams = {
     search?: string;
 };
 
+export function useTicket(id: string | null | undefined, initialTicket?: TicketDTO) {
+    return useQuery({
+        queryKey: ['ticket', id],
+        enabled: Boolean(id),
+        queryFn: ({ signal }) => {
+            if (!id) throw new Error('Missing ticket id.');
+            return apiGet<{ ticket: TicketDTO }>(`/api/tickets/${id}`, undefined, signal);
+        },
+        initialData: initialTicket ? { ticket: initialTicket } : undefined,
+    });
+}
+
 function updateTicketCaches(queryClient: ReturnType<typeof useQueryClient>, ticket: TicketDTO) {
     const queries = queryClient.getQueriesData<ListResponse<TicketDTO>>({ queryKey: ['tickets'] });
     for (const [key, data] of queries) {
@@ -49,6 +61,7 @@ export function useCreateTicket() {
     return useMutation({
         mutationFn: (body: CreateTicketRequest) => apiPost<{ ticket: TicketDTO; runId: string | null }>('/api/tickets', body),
         onSuccess: ({ ticket }) => {
+            queryClient.setQueryData(['ticket', ticket.id], { ticket });
             updateTicketCaches(queryClient, ticket);
             void queryClient.invalidateQueries({ queryKey: ['tickets'] });
         },
@@ -61,6 +74,7 @@ export function usePatchTicket() {
         mutationFn: ({ id, body }: { id: string; body: PatchTicketRequest }) =>
             apiPatch<{ ticket: TicketDTO }>(`/api/tickets/${id}`, body),
         onSuccess: ({ ticket }) => {
+            queryClient.setQueryData(['ticket', ticket.id], { ticket });
             updateTicketCaches(queryClient, ticket);
             void queryClient.invalidateQueries({ queryKey: ['tickets'] });
         },
@@ -84,6 +98,7 @@ export function useArchiveTicket() {
             }
         },
         onSuccess: ({ ticket }) => {
+            queryClient.setQueryData(['ticket', ticket.id], { ticket });
             updateTicketCaches(queryClient, ticket);
         },
         onSettled: () => {
@@ -98,6 +113,7 @@ export function useTriggerAIRun() {
         mutationFn: ({ id, force }: { id: string; force?: boolean }) =>
             apiPost<{ runId: string | null; ticket: TicketDTO }>(`/api/tickets/${id}/ai/run`, { force }),
         onSuccess: ({ ticket }) => {
+            queryClient.setQueryData(['ticket', ticket.id], { ticket });
             updateTicketCaches(queryClient, ticket);
             void queryClient.invalidateQueries({ queryKey: ['tickets'] });
         },

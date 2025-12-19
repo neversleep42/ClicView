@@ -295,11 +295,13 @@ Deno.serve(async (req) => {
 
   const { data: settings } = await supabaseAdmin
     .from("ai_settings")
-    .select("ai_enabled,selected_persona,max_response_length,tone_value,confidence_threshold")
+    .select("ai_enabled,auto_reply,confidence_threshold,selected_persona,max_response_length,tone_value")
     .eq("org_id", ticket.org_id)
     .maybeSingle();
 
   const aiEnabled = Boolean(settings?.ai_enabled);
+  const autoReply = Boolean(settings?.auto_reply);
+  const confidenceThreshold = clampInt(settings?.confidence_threshold ?? 70, 0, 100);
   const persona = (settings?.selected_persona ?? "professional") as "professional" | "friendly" | "concise";
   const maxWords = clampInt(settings?.max_response_length ?? 250, 50, 2000);
   const toneValue = clampInt(settings?.tone_value ?? 50, 0, 100);
@@ -341,6 +343,10 @@ Deno.serve(async (req) => {
     const intent = geminiResult?.intent ?? fallbackIntent;
     const draftResponse = geminiResult?.draftResponse ?? fallbackDraft;
 
+    const highConfidence = confidence >= confidenceThreshold;
+    const nextAIStatus = highConfidence ? "draft_ready" : "human_needed";
+    const shouldAutoReply = autoReply && highConfidence && ticket.status === "open";
+
     const finishedAt = new Date().toISOString();
 
     // Always store outputs on ai_runs
@@ -381,15 +387,39 @@ Deno.serve(async (req) => {
     const safeToWriteDraft = draftUpdatedAt == null || draftUpdatedAt <= startedAtMs;
 
     if (safeToWriteDraft) {
-      await supabaseAdmin
+      const { error: ticketUpdateError } = await supabaseAdmin
         .from("tickets")
         .update({
-          ai_status: "draft_ready",
+          status: shouldAutoReply ? "resolved" : ticket.status,
+          ai_status: nextAIStatus,
           draft_response: draftResponse,
           confidence,
           sentiment,
         })
         .eq("id", ticket.id);
+
+      if (ticketUpdateError) throw ticketUpdateError;
+
+      if (shouldAutoReply && draftResponse.trim().length > 0) {
+        // Best-effort: write an agent message representing the sent reply.
+        await supabaseAdmin.from("ticket_messages").insert({
+          org_id: ticket.org_id,
+          ticket_id: ticket.id,
+          author_type: "agent",
+          author_name: "Support Team",
+          content: draftResponse,
+        });
+
+        // Best-effort: notification for the user.
+        await supabaseAdmin.from("notifications").insert({
+          org_id: ticket.org_id,
+          type: "ai",
+          priority: "normal",
+          title: "Auto-resolved by AI",
+          message: `AI auto-resolved this ticket (confidence ${confidence}%).`,
+          ticket_id: ticket.id,
+        });
+      }
     } else {
       const nextStatus = ticket.ai_status === "human_needed" ? "human_needed" : "draft_ready";
       await supabaseAdmin
