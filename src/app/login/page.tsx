@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Bot, Loader2, LogIn, UserPlus } from 'lucide-react';
@@ -9,6 +9,14 @@ import { useToast } from '@/components/Toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
+    return (
+        <Suspense>
+            <LoginPageInner />
+        </Suspense>
+    );
+}
+
+function LoginPageInner() {
     const { addToast } = useToast();
     const router = useRouter();
     const searchParams = useSearchParams();
