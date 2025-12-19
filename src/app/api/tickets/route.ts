@@ -198,18 +198,20 @@ export async function POST(request: NextRequest) {
 
   // Resolve customer
   let customerId = parsed.data.customerId ?? null;
+  let customerName: string | null = null;
   if (!customerId && parsed.data.customer) {
     const email = parsed.data.customer.email.trim().toLowerCase();
 
     const { data: existing } = await supabase
       .from("customers")
-      .select("id")
+      .select("id,name")
       .eq("org_id", orgId)
       .ilike("email", email)
       .maybeSingle();
 
     if (existing?.id) {
       customerId = existing.id;
+      customerName = existing.name;
     } else {
       const { data: createdCustomer, error: createCustomerError } = await supabase
         .from("customers")
@@ -225,13 +227,14 @@ export async function POST(request: NextRequest) {
         if (createCustomerError.code === "23505") {
           const { data: existingAfterConflict } = await supabase
             .from("customers")
-            .select("id")
+            .select("id,name")
             .eq("org_id", orgId)
             .ilike("email", email)
             .maybeSingle();
 
           if (existingAfterConflict?.id) {
             customerId = existingAfterConflict.id;
+            customerName = existingAfterConflict.name;
           } else {
             return apiError(409, "CUSTOMER_EMAIL_EXISTS", "Customer email already exists in this org.");
           }
@@ -242,11 +245,25 @@ export async function POST(request: NextRequest) {
         return apiError(500, "INTERNAL", "Failed to create customer.");
       } else {
         customerId = createdCustomer.id;
+        customerName = parsed.data.customer.name;
       }
     }
   }
 
   if (!customerId) return apiError(400, "VALIDATION_ERROR", "Missing customerId/customer.");
+
+  if (!customerName) {
+    const { data: customerRow, error: customerError } = await supabase
+      .from("customers")
+      .select("name")
+      .eq("org_id", orgId)
+      .eq("id", customerId)
+      .maybeSingle();
+
+    if (customerError) return apiError(500, "INTERNAL", "Failed to load customer.", { cause: customerError.message });
+    if (!customerRow) return apiError(404, "NOT_FOUND", "Customer not found.");
+    customerName = customerRow.name;
+  }
 
   // Determine AI enablement and whether to enqueue.
   const { data: settings } = await supabase
@@ -276,6 +293,20 @@ export async function POST(request: NextRequest) {
 
   if (insertError || !insertedTicket) {
     return apiError(500, "INTERNAL", "Failed to create ticket.", { cause: insertError?.message });
+  }
+
+  const { error: messageError } = await supabase
+    .from("ticket_messages")
+    .insert({
+      org_id: orgId,
+      ticket_id: insertedTicket.id,
+      author_type: "customer",
+      author_name: customerName,
+      content,
+    });
+
+  if (messageError) {
+    return apiError(500, "INTERNAL", "Failed to create initial ticket message.", { cause: messageError.message });
   }
 
   let runId: string | null = null;
