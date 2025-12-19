@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -9,7 +9,7 @@ import { Bot, Loader2, LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
-export default function LoginPage() {
+function LoginPageContent() {
     const { addToast } = useToast();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -102,13 +102,13 @@ export default function LoginPage() {
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: step.number * 0.1 }}
                                 className={`flex items-center gap-4 px-5 py-4 rounded-xl border transition-all ${step.active
-                                        ? 'bg-white/5 border-white/20'
-                                        : 'bg-transparent border-white/10'
+                                    ? 'bg-white/5 border-white/20'
+                                    : 'bg-transparent border-white/10'
                                     }`}
                             >
                                 <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-medium ${step.active
-                                        ? 'bg-[var(--accent-green)] text-white'
-                                        : 'bg-white/10 text-[#666]'
+                                    ? 'bg-[var(--accent-green)] text-white'
+                                    : 'bg-white/10 text-[#666]'
                                     }`}>
                                     {step.number}
                                 </span>
@@ -259,5 +259,13 @@ export default function LoginPage() {
                 </motion.div>
             </div>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-[#0a0a0a]" />}>
+            <LoginPageContent />
+        </Suspense>
     );
 }
