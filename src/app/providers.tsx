@@ -8,24 +8,16 @@ import { ToastProvider } from '@/components/Toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
 function extractId(payload: unknown): string | null {
-<<<<<<< HEAD
-    const row = (payload as { new?: { id?: unknown }; old?: { id?: unknown } } | null | undefined)?.new ??
-=======
     const row =
         (payload as { new?: { id?: unknown }; old?: { id?: unknown } } | null | undefined)?.new ??
->>>>>>> feat/backend-integration
         (payload as { new?: { id?: unknown }; old?: { id?: unknown } } | null | undefined)?.old;
     const id = row?.id;
     return typeof id === 'string' ? id : null;
 }
 
 function extractTicketId(payload: unknown): string | null {
-<<<<<<< HEAD
-    const row = (payload as { new?: { ticket_id?: unknown }; old?: { ticket_id?: unknown } } | null | undefined)?.new ??
-=======
     const row =
         (payload as { new?: { ticket_id?: unknown }; old?: { ticket_id?: unknown } } | null | undefined)?.new ??
->>>>>>> feat/backend-integration
         (payload as { new?: { ticket_id?: unknown }; old?: { ticket_id?: unknown } } | null | undefined)?.old;
     const id = row?.ticket_id;
     return typeof id === 'string' ? id : null;
@@ -72,26 +64,6 @@ export function Providers({ children }: { children: ReactNode }) {
             }
         );
 
-<<<<<<< HEAD
-        channel.on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'notifications' },
-            () => {
-                void queryClient.invalidateQueries({ queryKey: ['notifications'] });
-            }
-        );
-
-        channel.on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'ai_runs' },
-            (payload) => {
-                const ticketId = extractTicketId(payload);
-                void queryClient.invalidateQueries({ queryKey: ['tickets'] });
-                void queryClient.invalidateQueries({ queryKey: ['analytics'] });
-                if (ticketId) void queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
-            }
-        );
-=======
         channel.on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
             void queryClient.invalidateQueries({ queryKey: ['notifications'] });
         });
@@ -102,7 +74,6 @@ export function Providers({ children }: { children: ReactNode }) {
             void queryClient.invalidateQueries({ queryKey: ['analytics'] });
             if (ticketId) void queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
         });
->>>>>>> feat/backend-integration
 
         channel.subscribe();
 

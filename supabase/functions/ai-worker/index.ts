@@ -401,11 +401,7 @@ Deno.serve(async (req) => {
       if (ticketUpdateError) throw ticketUpdateError;
 
       if (shouldAutoReply && draftResponse.trim().length > 0) {
-<<<<<<< HEAD
-        // Best-effort: write an agent message representing the sent reply.
-=======
         // Best-effort: represent the "sent" response in the message thread.
->>>>>>> feat/backend-integration
         await supabaseAdmin.from("ticket_messages").insert({
           org_id: ticket.org_id,
           ticket_id: ticket.id,
@@ -414,11 +410,7 @@ Deno.serve(async (req) => {
           content: draftResponse,
         });
 
-<<<<<<< HEAD
-        // Best-effort: notification for the user.
-=======
         // Best-effort: surface an event in Notifications.
->>>>>>> feat/backend-integration
         await supabaseAdmin.from("notifications").insert({
           org_id: ticket.org_id,
           type: "ai",

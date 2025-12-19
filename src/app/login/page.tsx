@@ -1,10 +1,6 @@
 'use client';
 
-<<<<<<< HEAD
-import { Suspense, useState } from 'react';
-=======
 import { useState, Suspense } from 'react';
->>>>>>> feat/backend-integration
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -13,19 +9,7 @@ import { Bot, Loader2, LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 
-<<<<<<< HEAD
-export default function LoginPage() {
-    return (
-        <Suspense>
-            <LoginPageInner />
-        </Suspense>
-    );
-}
-
-function LoginPageInner() {
-=======
 function LoginPageContent() {
->>>>>>> feat/backend-integration
     const { addToast } = useToast();
     const router = useRouter();
     const searchParams = useSearchParams();

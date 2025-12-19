@@ -23,10 +23,7 @@ type TicketRow = {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
-<<<<<<< HEAD
-=======
   // Supabase returns array for foreign key relations, we handle both cases
->>>>>>> feat/backend-integration
   customer?: CustomerRefRow | CustomerRefRow[] | null;
 };
 
@@ -112,13 +109,8 @@ export const TICKET_SELECT = `
 `;
 
 export function mapTicketRow(row: TicketRow): TicketDTO {
-<<<<<<< HEAD
-  const customer = Array.isArray(row.customer) ? row.customer[0] : row.customer;
-  if (!customer) throw new Error("Ticket row missing customer.");
-=======
   // Supabase may return customer as array or object depending on the join
   const customerData = Array.isArray(row.customer) ? row.customer[0] : row.customer;
->>>>>>> feat/backend-integration
 
   return {
     id: row.id,
@@ -135,15 +127,9 @@ export function mapTicketRow(row: TicketRow): TicketDTO {
     sentiment: row.sentiment == null ? null : Number(row.sentiment),
     draftResponse: row.draft_response,
     customer: {
-<<<<<<< HEAD
-      id: customer.id,
-      name: customer.name,
-      email: customer.email,
-=======
       id: customerData?.id ?? "",
       name: customerData?.name ?? "",
       email: customerData?.email ?? "",
->>>>>>> feat/backend-integration
     },
     archivedAt: row.archived_at,
     createdAt: row.created_at,
